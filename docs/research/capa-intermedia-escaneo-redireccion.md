@@ -2,7 +2,7 @@
 
 > Fecha: 2026-08-22 · Alcance: Android e iOS (parque argentino), navegadores móviles y billeteras/PSP argentinos, estado de plataforma a agosto de 2026 · Método: verificación contra documentación oficial de plataforma (developer.android.com, developer.apple.com, developer.chrome.com, webkit.org, extensionworkshop.com/MDN, emvco.com), documentación de producto de las billeteras y texto de las comunicaciones del BCRA descargadas del sitio oficial. Cada afirmación lleva su fuente etiquetada **[PRIMARIA]** o **[SECUNDARIA]** y su estatus epistémico **HECHO / INFERENCIA / HIPÓTESIS**. Los vacíos están declarados en línea con lo que se buscó.
 
-Este informe responde una pregunta de arquitectura, no de mercado: **¿puede QRSafe interponerse entre el escaneo de un QR y la carga del destino, y con qué límites impuestos por Android, iOS y los navegadores?** Complementa a [`fraude-qr-argentina-y-blockchain.md`](./fraude-qr-argentina-y-blockchain.md) y se subordina a [`tesis-identity-binding-b2b.md`](./tesis-identity-binding-b2b.md) como fuente de verdad de la propuesta B2B.
+Este informe responde una pregunta de arquitectura, no de mercado: **¿puede QRSafe interponerse entre el escaneo de un QR y la carga del destino, y con qué límites impuestos por Android, iOS y los navegadores?** Complementa a [`fraude-qr-argentina-y-blockchain.md`](./fraude-qr-argentina-y-blockchain.md).
 
 ---
 
@@ -10,7 +10,7 @@ Este informe responde una pregunta de arquitectura, no de mercado: **¿puede QRS
 
 1. **El hallazgo que reordena la pregunta: en el QR de pago argentino no hay redirección que interceptar.** El QR interoperable sigue el estándar EMVCo Merchant Presented Mode, cuyo contenido **no es una URL**. EMVCo lo dice textualmente: *"such data is payment specific and does not have a general purpose, unlike a uniform resource locator (URL) […] A generic QR Code reader such as the mobile operating system provided camera application is generally not usable with the EMV Merchant Presented QR Code Specification."* [PRIMARIA — https://www.emvco.com/emv-technologies/qrcodes/] **HECHO**. La cámara del sistema no abre un navegador: no hay salto cámara → navegador donde interponerse.
 
-2. **Consecuencia directa**: las Opciones 1 y 2 (capa de SO y capa de navegador) **no aplican al caso de uso central de la tesis** (sustitución de QR de cobro). Aplican al **QR de exploración** — menú, señalética, cartelería, placas, etiquetas — y al *quishing* con URL, que sí encodean http(s) y sí terminan en un navegador.
+2. **Consecuencia directa**: las Opciones 1 y 2 (capa de SO y capa de navegador) **no aplican al caso de uso central de QRSafe** (sustitución de QR de cobro). Aplican al **QR de exploración** — menú, señalética, cartelería, placas, etiquetas — y al *quishing* con URL, que sí encodean http(s) y sí terminan en un navegador.
 
 3. **Android — Opción 1: viable HOY, con una única vía documentada: registrarse como navegador.** Desde Android 12, *"a generic web intent resolves to an activity in your app only if your app is approved for the specific domain contained in that web intent. If your app isn't approved for the domain, the web intent resolves to the user's default browser app instead."* [PRIMARIA] Como QRSafe no controla los dominios ajenos, no puede verificarlos vía App Links; la única puerta que queda abierta es el **rol de navegador por defecto** (`ROLE_BROWSER`), que se obtiene declarando un intent filter genérico `<data android:scheme="http" />` y pidiéndoselo al usuario con `RoleManager.createRequestRoleIntent()` (API 29+). [PRIMARIA] **HECHO**.
 
@@ -30,7 +30,7 @@ Este informe responde una pregunta de arquitectura, no de mercado: **¿puede QRS
 
 Antes de evaluar arquitecturas hay que fijar qué se está interceptando. **No hay un solo flujo: hay dos, y son incompatibles entre sí.**
 
-### 1.1 Flujo A — QR de pago EMVCo (el caso de la tesis)
+### 1.1 Flujo A — QR de pago EMVCo (el caso central de QRSafe)
 
 **HECHO** [PRIMARIA]. El QR de comercio argentino transporta una *trama* EMVCo, no una URL. La API de Mercado Pago que genera el QR devuelve un campo `qr_data`, descrito como *"Trama EMVCo para la generación del código QR"*, con este ejemplo de respuesta:
 
@@ -161,7 +161,7 @@ Lo único que dice la ayuda oficial [PRIMARIA — https://support.google.com/cam
 |---|---|
 | **Viabilidad técnica** | **Parcial — Sí sólo vía `ROLE_BROWSER`.** Registrarse para "cualquier URL" como app no-navegador: **No** desde Android 12 [PRIMARIA]. Como navegador por defecto: **Sí** [PRIMARIA, `ROLE_BROWSER` + `createRequestRoleIntent` API 29+]. |
 | **Cobertura** | 87,46% del parque móvil argentino es Android [SECUNDARIA, StatCounter jul-2026]. Pero sólo cubre el **Flujo B**: cero cobertura del QR de pago EMVCo. |
-| **Fricción** | Alta. Instalar la app **y** cambiar el navegador por defecto en un diálogo del sistema. Un navegador por defecto se elige una vez en la vida del teléfono; pedir ese cambio para una función de seguridad es una barrera mayor que el "paso extra" que la tesis ya identifica como riesgo principal (§4.3 del informe principal). |
+| **Fricción** | Alta. Instalar la app **y** cambiar el navegador por defecto en un diálogo del sistema. Un navegador por defecto se elige una vez en la vida del teléfono; pedir ese cambio para una función de seguridad es una barrera mayor que el "paso extra" ya identificado como riesgo principal (§4.3 del informe principal). |
 | **Dependencia de terceros** | Google. El rol existe por decisión de Android; el comportamiento del escáner de la cámara depende de Google Lens / el OEM. |
 | **Riesgo de ruptura** | **Alto, con precedente doble y documentado**: Android 11 restringió la visibilidad de paquetes; Android 12 cerró la resolución genérica de web intents. Google ha estrechado esta superficie en dos versiones consecutivas. Que `ROLE_BROWSER` siga abierto a apps no-navegador es una **HIPÓTESIS** sobre el futuro, no una garantía. |
 
@@ -350,7 +350,7 @@ Del §1.1: en el Flujo A el único intersticio existente está **dentro de la bi
 
 **HECHO** [PRIMARIA]. El **flujo aceptador** documenta la llamada `GET /resolve?data={qr_raw}` que devuelve `order_id` y métodos de pago. https://www.mercadopago.com.ar/developers/es/docs/qr-code/interoperable/acceptor-flow
 
-**INFERENCIA**: no existe un SDK ni un punto de extensión para que un tercero **inyecte una verificación** en el flujo de la billetera. Lo que existe es una vía para que **otra billetera** interopere. QRSafe podría usar esa puerta sólo si se convirtiera en billetera — lo cual la tesis descarta explícitamente en su alcance inicial ("no necesita convertirse en billetera, PSP ni procesar la transacción").
+**INFERENCIA**: no existe un SDK ni un punto de extensión para que un tercero **inyecte una verificación** en el flujo de la billetera. Lo que existe es una vía para que **otra billetera** interopere. QRSafe podría usar esa puerta sólo si se convirtiera en billetera, PSP o procesador de la transacción — un cambio de alcance que excede lo que este informe evalúa.
 
 #### MODO — no emite QR y su SDK es de checkout
 
@@ -465,7 +465,7 @@ Fuentes: https://gs.statcounter.com/os-market-share/mobile/argentina · https://
 - **Se resigna el autoservicio.** No hay puerta técnica: el producto no existe hasta que una billetera firme. La Opción 1 en Android se puede desplegar mañana sin pedirle permiso a nadie; la Opción 3 no.
 - **Se resigna el control del roadmap.** El time-to-market pasa a depender de un ciclo comercial ajeno.
 - **Se acepta el riesgo de canibalización.** Mercado Pago tiene, según el mapa de competidores, capacidad máxima para construirlo in-house. Integrarse con quien puede reemplazarte es una apuesta con fecha.
-- **Se acepta que la palanca A 8032 sólo cubre tarjeta de crédito.** Para el sticker sobre QR estático de transferencia — el caso central de la tesis — la pérdida sigue recayendo sobre comercio y pagador, y la billetera no tiene obligación equivalente. El argumento de venta a billeteras tiene que ser reputacional y de retención, no sólo de contracargo.
+- **Se acepta que la palanca A 8032 sólo cubre tarjeta de crédito.** Para el sticker sobre QR estático de transferencia — el caso central de QRSafe — la pérdida sigue recayendo sobre comercio y pagador, y la billetera no tiene obligación equivalente. El argumento de venta a billeteras tiene que ser reputacional y de retención, no sólo de contracargo.
 - **Se posterga la cobertura del QR de exploración.** Menús, señalética, placas, etiquetas: nada de eso lo toca un SDK de billetera.
 
 ### 6.4 La combinación que cubre más que cualquiera sola
@@ -474,7 +474,7 @@ Fuentes: https://gs.statcounter.com/os-market-share/mobile/argentina · https://
 
 | Frente | Arquitectura | Estado |
 |---|---|---|
-| **QR de cobro (Flujo A)** | Canal propio (app QRSafe, tal como ya define la tesis) → evoluciona a SDK/API en billetera | Canal propio: hoy. SDK: mediano plazo, dependiente de adopción. |
+| **QR de cobro (Flujo A)** | Canal propio de QRSafe → evoluciona a SDK/API en billetera | Canal propio: hoy. SDK: mediano plazo, dependiente de adopción. |
 | **QR de exploración y quishing (Flujo B)** | Navegador QRSafe en Android con `ROLE_BROWSER` | Técnicamente desplegable hoy [PRIMARIA]. Requiere decidir si vale construir un navegador. |
 
 **Recomendación sobre el Flujo B: no construirlo ahora.** Es un producto distinto, con un usuario distinto, un modelo de negocio distinto y una superficie de mantenimiento enorme (ser navegador). Vale como opción documentada para cuando el registro de bindings tenga masa crítica y aparezca un caso de uso de exploración con cliente pagador identificado — por ejemplo un municipio con 600 carteles en la vía pública.

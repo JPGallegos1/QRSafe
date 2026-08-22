@@ -1,6 +1,6 @@
 # QR Safe Bot — diseño de verificación de QR por chat
 
-> Fecha: 2026-08-22 · Alcance: Argentina · **Naturaleza de este documento: diseño de producto, no investigación.** No aporta hallazgos nuevos contra fuentes primarias; construye sobre los alcances ya establecidos en [`fraude-qr-argentina-y-blockchain.md`](./fraude-qr-argentina-y-blockchain.md), [`tesis-identity-binding-b2b.md`](./tesis-identity-binding-b2b.md), [`competidores-que-ya-generan-qr-argentina.md`](./competidores-que-ya-generan-qr-argentina.md) y [`capa-intermedia-escaneo-redireccion.md`](./capa-intermedia-escaneo-redireccion.md). Las afirmaciones heredadas de esos informes conservan su etiqueta de origen; las decisiones de diseño están marcadas como tales.
+> Fecha: 2026-08-22 · Alcance: Argentina · **Naturaleza de este documento: diseño de producto, no investigación.** No aporta hallazgos nuevos contra fuentes primarias; construye sobre los alcances ya establecidos en [`fraude-qr-argentina-y-blockchain.md`](./fraude-qr-argentina-y-blockchain.md), [`competidores-que-ya-generan-qr-argentina.md`](./competidores-que-ya-generan-qr-argentina.md) y [`capa-intermedia-escaneo-redireccion.md`](./capa-intermedia-escaneo-redireccion.md). Las afirmaciones heredadas de esos informes conservan su etiqueta de origen; las decisiones de diseño están marcadas como tales.
 
 ---
 
@@ -46,7 +46,7 @@ Esto permite crecer sin mentir: cada dominio que se cierra al 100% convierte una
 
 ## 3. Los cuatro estados de respuesta
 
-Ningún estado afirma que un QR sea "seguro" ni acusa fraude. Siguiendo la tesis de Identity Binding, el bot sólo constata **pertenencia o no-pertenencia**.
+Ningún estado afirma que un QR sea "seguro" ni acusa fraude. El bot sólo constata **pertenencia o no-pertenencia**: si un código determinado fue autorizado por el negocio que el consumidor cree estar pagando. Es una afirmación más chica y más defendible que "esto es seguro", y es la única que el producto puede sostener.
 
 ### 3.1 Verificado
 > **Este código está autorizado por {Emisor}.**
