@@ -1,6 +1,6 @@
-# Research: Fraude QR en Argentina y viabilidad de blockchain — QRSafe
+# Research: Fraude QR en Argentina, players internacionales, criptografía y blockchain — QRSafe
 
-> Fecha: 2026-08-22 · Alcance: Argentina · Método: investigación contra fuentes primarias (BCRA/CIMPRA, MPF/UFECI, EMVCo, W3C, NIST, papers académicos) por dos agentes paralelos (mercado y blockchain), sintetizada en este documento. Las afirmaciones que solo aparecen en prensa están marcadas como *fuente secundaria*.
+> Fecha: 2026-08-22 (v2: conciliación con research de players internacionales, criptografía sin blockchain y mundo cripto) · Alcance: Argentina + paisaje internacional · Método: investigación contra fuentes primarias (BCRA/CIMPRA, MPF/UFECI, EMVCo, W3C, NIST, BCB, NPCI, FTC, papers académicos) por agentes paralelos, sintetizada en este documento. Las afirmaciones que solo aparecen en prensa están marcadas como *fuente secundaria*.
 
 ---
 
@@ -8,9 +8,11 @@
 
 1. **El problema existe y está regulado a medias**: la normativa argentina (BCRA/CIMPRA) obliga a billeteras y PSP a mitigar fraude *transaccional*, pero **nadie cubre la integridad física del QR exhibido en el comercio** (la "última pulgada" anti-sticker). El QR de comercio EMVCo no tiene firma criptográfica anti-sustitución; solo el QR de transporte (VQR) la tiene.
 2. **No existe estadística pública nacional de fraude por sustitución de QR** (UFECI no lo tipifica; BCRA reporta reclamos agregados). Eso es a la vez un riesgo (mercado difícil de dimensionar) y una oportunidad (QRSafe puede generar el dato).
-3. **Espacio competitivo vacío**: no se encontró ninguna empresa argentina dedicada a verificación de QR / anti-tampering de QR de pago. Las billeteras externalizan el problema al comercio ("inspeccioná tu QR a diario").
-4. **Blockchain como diferencial central es un buzzword en el contexto argentino**: existe un tercero de confianza online regulado (BCRA + IEP/API resolve que ya se consulta en cada pago), lo que invalida el criterio académico estándar (Wüst & Gervais) para justificar una blockchain. La alternativa honesta y defendible: registro firmado + verificación en el flujo existente, con anclaje opcional estilo OpenTimestamps como plus narrativo.
-5. **Recomendación de foco**: el nicho real es el **QR estático físico sin supervisión** (estaciones, gastronomía, parking, kioscos). El canal más viable como primer producto es la **capa de verificación** (no ser PSP), complementada con monitoreo por cámaras con IA como diferencial defensible.
+3. **Espacio competitivo vacío en Argentina y a nivel internacional**: ninguna empresa argentina se dedica a verificación de QR de pago. Los escáneres seguros internacionales (Kaspersky, Norton, Trend Micro, Bitdefender, "Is This QR Safe?") verifican **reputación de URLs** contra phishing — **ninguno valida la sustitución de un QR de pago EMVCo ni el binding QR↔comercio**. El ataque argentino (sticker con QR EMVCo válido del estafador) es invisible para todos ellos: el fraude no está en el link, está en quién cobra. Además, la categoría B2C de "QR security scanner" está en contracción (Kaspersky QR Scanner discontinuado iOS 2022 y fuera de Google Play 2024; Norton Snap EOL 2019; Trend Micro sin updates desde 2023), y el lado comercio queda cubierto solo por consejos manuales.
+4. **Blockchain como diferencial central es un buzzword en el contexto argentino**: existe un tercero de confianza online regulado (BCRA + IEP/API resolve que ya se consulta en cada pago), lo que invalida el criterio académico estándar (Wüst & Gervais). La criptografía sin blockchain (firma Ed25519 en Unreserved Templates 80–99 del EMVCo MPM) es técnicamente viable y compatible con el estándar, pero ** tampoco resuelve el sticker fraud**: el QR del estafador es un QR válido emitido por su propia cuenta; el eslabón débil es semántico (el usuario no contrasta el `collector.name`), no criptográfico.
+5. **La mitigación donde converge la evidencia internacional** (BCB/Pix Brasil, NPCI/UPI India, papers de address poisoning cripto) es el **contraste de identidad del receptor** (nombre esperado vs. nombre mostrado) — el punto de fallo es humano/UX, no falta de criptografía.
+6. **Extensión al mundo cripto: no recomendada**. La hipótesis de que cada wallet tiene su propio mecanismo de seguridad se valida sustancialmente: EIP-55/EIP-681, simulación pre-firma (Blockaid en MetaMask/Coinbase, US$50M Serie B 2025) y blocklists (Scam Sniffer) ya cubren el espacio, y el fraude QR cripto dominante es remoto (ingeniería social), no presencial.
+7. **Recomendación de foco**: el nicho real es el **QR estático físico sin supervisión** (estaciones, gastronomía, parking, kioscos). El canal más viable como primer producto es la **capa de verificación** (no ser PSP), con el contraste de identidad del receptor como núcleo del producto. *(Nota de alcance: el monitoreo por cámaras con IA, evaluado en la v1 de este documento, quedó fuera del MVP por complejidad de integración con providers de videoanalítica.)*
 
 ---
 
@@ -56,7 +58,7 @@
 
 ### 1.5 Casos documentados por segmento
 
-- **Estaciones de servicio**: (a) Shell, San Martín (GBA): faltante de **$38 millones** por sustitución física del posnet; **las cámaras del comercio fueron la prueba clave** (4 detenidos). *(Fuente secundaria: eltrece, 10/08/2026 — https://www.eltrecetv.com.ar/arriba-argentinos/2026/08/10/adulteraron-un-posnet-de-una-estacion-de-servicio-y-robaron-38-millones-de-pesos-el-video-de-la-maniobra/)* (b) AXION/Maxfa (San Juan): fraude interno >$200 millones. *(Infocaucete, 24/04/2026 — https://www.infocaucete.com.ar/sanjuan/24/04/2026/escandalo-en-san-juan-detienen-a-empleado-de-estacion-de-servicio-por-estafa-que-superaria-los-200-millones/)* (c) "Tickets mellizos" en Chimbas (>$15M, 8 empleados). *(Diario La Ventana — https://diariolaventana.com.ar/investigan-a-ocho-empleados-de-una-estacion-de-servicio-por-una-millonaria-defraudacion/)* (d) AOYPF documenta "cadenas" de fraudes y contracargos. [https://www.aoypf.org/contracargos-de-la-app-ypf-un-problema-en-vias-de-solucion/]
+- **Estaciones de servicio**: (a) Shell, San Martín (GBA): faltante de **$38 millones** por sustitución física del posnet (4 detenidos). *(Fuente secundaria: eltrece, 10/08/2026 — https://www.eltrecetv.com.ar/arriba-argentinos/2026/08/10/adulteraron-un-posnet-de-una-estacion-de-servicio-y-robaron-38-millones-de-pesos-el-video-de-la-maniobra/)* (b) AXION/Maxfa (San Juan): fraude interno >$200 millones. *(Infocaucete, 24/04/2026 — https://www.infocaucete.com.ar/sanjuan/24/04/2026/escandalo-en-san-juan-detienen-a-empleado-de-estacion-de-servicio-por-estafa-que-superaria-los-200-millones/)* (c) "Tickets mellizos" en Chimbas (>$15M, 8 empleados). *(Diario La Ventana — https://diariolaventana.com.ar/investigan-a-ocho-empleados-de-una-estacion-de-servicio-por-una-millonaria-defraudacion/)* (d) AOYPF documenta "cadenas" de fraudes y contracargos. [https://www.aoypf.org/contracargos-de-la-app-ypf-un-problema-en-vias-de-solucion/]
 - **Hallazgo honesto**: no se encontró un caso policial resuelto y masivo específicamente de "sticker sobre QR de estación YPF". El vector está abundantemente documentado como modalidad genérica, pero los casos de estaciones más documentados son fraude interno y adulteración de posnet (ambos involucran reemplazo físico del dispositivo de cobro).
 
 ---
@@ -73,7 +75,7 @@
 
 ---
 
-## 3. Paisaje competitivo (Argentina)
+## 3. Paisaje competitivo (Argentina e internacional)
 
 ### 3.1 Bancos / fintech / procesadores
 
@@ -86,9 +88,36 @@
 
 **Hallazgo central: no existe ninguna empresa argentina dedicada específicamente a verificación de QR / anti-tampering de QR de pago.** Las búsquedas devuelven solo adyacentes: acortadores con QR para marketing (https://tw.com.ar/), verificación de identidad genérica (https://aidi.com.ar/empresas/), motores antifraude transaccional e-commerce (https://www.wondersoft.com.ar/). Lo más cercano regional: Depay (QR cross-border, menciona prevención de QRs maliciosos como feature de infraestructura — https://bankmagazine.com.ar/la-tecnologia-detras-del-qr/). **Espacio vacío documentable.**
 
-### 3.3 Video analítica con IA (socios/competidores del monitoreo por cámara)
+### 3.3 Players internacionales de verificación/escaneo seguro de QR
 
-Netcamara (https://netcamara.com/), Napsys (https://napsys.com.ar/), Vision Studio (https://www.linkedin.com/company/vision-studio-s-a-/), USS (https://uss.com.ar/), IP Security (https://ipsecurity.com.ar/), CreekVision (NVIDIA Inception, https://www.linkedin.com/company/creekia); regionales: KSI Vision (https://ksivision.com/), TechnoAware (https://technoaware.org/), SVA Tech (https://svatech.com.br/). **Ninguno ofrece un módulo de "detección de sustitución de QR de pago"** — son integradores/socios más que competidores.
+**Kaspersky QR Scanner** — El escáner más conocido:
+- Qué hace: chequea cada código escaneado contra la reputación de URLs/links de Kaspersky (blocklist de phishing/malware). La documentación lo confirma: "checking any links they may contain" — **verificación de URLs, no de payloads de pago**. Irónicamente, su propio blog describe el ataque de sticker-sobre-QR legítimo, pero su producto solo chequea el link resultante, no si el payload pertenece al comercio donde está pegado el código. [Kaspersky blog — https://www.kaspersky.com/blog/kaspersky-qr-scanner-app/7350/] [Kaspersky Support — https://support.kaspersky.com/kaspersky-for-android/237265]
+- Modelo: app gratuita B2C, funnel hacia la suite Kaspersky.
+- **Estado crítico**: discontinuado en iOS (oct. 2022) y fuera de Google Play (oct. 2024, por sanciones de EE.UU. que terminaron la cuenta de desarrollador). [Kaspersky Support EOL — https://support.kaspersky.com/qrscanner-for-ios/1.10/249505] [BackBox — https://news.backbox.org/2024/10/07/kaspersky-apps-are-no-longer-available-on-google-play-what-to-do-kaspersky-official-blog/]
+- Cobertura LatAm: sitio en español, pero producto global y genérico; sin features para el ecosistema QR de pagos argentino.
+
+**"Is This QR Safe?"** y la categoría "QR checkers":
+- ITQS: desarrollador individual (Geoji Paul / Paulosec LLC, EE.UU.), proyecto personal admitido como tal. Decodifica el QR, sigue redirects y consulta el destino contra 70+ motores vía VirusTotal. Gratuito, micro-escala (3 ratings en App Store). No verifica payloads EMVCo ni binding físico. [App Store — https://apps.apple.com/us/app/isthisqrsafe/id6737241777]
+- Resto de la categoría (todos verificación de reputación de URL):
+
+| Player | Estado 2025-2026 | Verificación |
+|---|---|---|
+| Trend Micro QR Scanner | Última actualización ago. 2023; reportado no disponible en Play (2026) | URL safety checks [https://play.google.com/store/apps/details?id=com.trendmicro.qrscan] |
+| Norton Snap QR Reader | **Discontinuado (EOL 2019)**; Norton hoy no tiene escáner QR dedicado | URL reputation [https://community.norton.com/t/end-of-life-announcement-for-norton-snap-qr-code-reader/235043] |
+| Bitdefender Scamio | **Activo**, chatbot IA gratuito, análisis de QR on-demand | Threat-intel Bitdefender [https://www.bitdefender.com/en-us/consumer/scamio] |
+| susQR / QR Safe / QR Secure (español) / micro-apps indie | Activas, micro-escala | VirusTotal / Safe Browsing [https://susqr.com/] [https://apps.apple.com/us/app/qr-secure-esc%C3%A1ner-qr-seguro/id6475613305] |
+| QRTracker Safe Scan / QRLynx | Activos, pero son **generadores** con higiene de URLs (B2B marketing, no pagos) | Screening de URLs de códigos que ellos generan [https://qrtracker.io/safe-scan] |
+
+**Startups anti-quishing / lado comercio (global):**
+- No se encontró ninguna startup consolidada (con funding) dedicada a "QR payment substitution / merchant QR protection" como producto comercial. El boom quishing 2023-2026 generó herramientas, pero casi todas son consumer URL-checkers o features de vendors grandes. [https://www.startupdefense.io/blog/quishing-attacks-qr-code-phishing-startups]
+- El player B2B más cercano conceptualmente: **MSME SecureX (India)** — "AI-powered payment fraud protection for Indian businesses... fake UPI screenshots, QR tampering", UPI-first, WhatsApp integration. Replicarlo en Argentina requeriría re-architecture completo al ecosistema Transferencias 3.0. [https://www.msmesecurex.com/]
+- Académico sin producto comercial: detección visual de QRIS falsificados (Indonesia) con CNN + validación de payload EMVCo logra 95% de precisión, pero los autores reconocen que **no pueden verificar el merchant real** "due to restricted access to Bank Indonesia's official merchant database" — exactamente el problema que QRSafe ataca. [ResearchGate — https://www.researchgate.net/publication/364593009]
+- **LatAm/Argentina: no se encontró ningún player dedicado.** Las apps en español son traducciones de indie apps de URL-checking.
+
+**Análisis de encaje — hipótesis CONFIRMADA:**
+> "Los escáneres seguros existentes verifican reputación de URLs contra phishing/quishing, PERO ninguno valida la sustitución de un QR de pago EMVCo ni el binding físico QR↔comercio, y por lo tanto no cubren el caso argentino."
+
+El matiz clave: el ataque de sticker **no requiere que la URL sea maliciosa**. Un QR EMVCo genuino del estafador (con su propio CVU/alias legítimamente registrado) pasa limpio por todos estos escáneres — el fraude está en la identidad del cobrador, no en el link. Ningún player internacional tiene base de datos de comercios argentinos, integración con el ecosistema local (BCRA/CIMPRA), ni modelo de negocio para el merchant. Diferencia de público: todos son **B2C consumidor** (el individuo debe instalar una app extra e interpretar un veredicto de URL); QRSafe opera **B2B2C** (el comercio registra y verifica su QR; el pagador recibe la validación). Ningún incumbente internacional ocupará ese terreno: la categoría está en contracción y el lado merchant solo recibe consejos manuales de auditoría física. [Global Payments Integrated — https://www.globalpaymentsintegrated.com/en-us/blog/2022/03/29/5-ways-isvs-can-help-protect-merchants-against-qr-code-scams]
 
 ---
 
@@ -97,7 +126,7 @@ Netcamara (https://netcamara.com/), Napsys (https://napsys.com.ar/), Vision Stud
 ### 4.1 Gaps no cubiertos
 
 1. **Integridad física del QR del comercio**: nadie ofrece verificación de que el QR exhibido es el legítimo; el estándar EMVCo de comercio no tiene firma anti-sustitución (solo VQR/transporte la tiene).
-2. **Detección temprana**: no existe producto que detecte en tiempo real el cambio de QR (ni por cámara ni por patrón de pagos — caída abrupta de ingresos, discrepancia volumen/ventas).
+2. **Detección temprana**: no existe producto que detecte el cambio de QR (ni por patrón de pagos — caída abrupta de ingresos del comercio, discrepancia volumen/ventas como en los casos San Juan/Shell).
 3. **Canal de verificación para el pagador**: ninguna billetera muestra una señal de "QR verificado por el comercio" independiente del `collector.name` (que el usuario promedio no contrasta).
 4. **Estadística específica**: la dimensión real del fraude por QR sustituido es invisible; generarlo es una ventaja defensible.
 5. Las recomendaciones oficiales actuales son puramente manuales ("fijarse si hay sticker encima", "inspección diaria").
@@ -109,7 +138,8 @@ Netcamara (https://netcamara.com/), Napsys (https://napsys.com.ar/), Vision Stud
 | **App propia (escáner verificador)** | Media-alta | Puede decodificar el string EMVCo y contrastar contra el Registro de PSP del BCRA + API resolve. Barrera: no existe registro público "QR legítimo ↔ comercio" — habría que construirlo. Riesgo de responsabilidad si aprueba un QR fraudulento. |
 | **Layer intermedio (PSP/middleware)** | Alta técnica, regulatoriamente delicada | Ser PSP exige registro BCRA, CIMPRA, integración con administrador (COELSA, Red Link, Newpay) y sponsor bancario; el tope de comisión PCT (0,8%) acota el margen. Alternativa liviana: **capa de verificación sobre el QR existente** (firma + check al escanear) sin ser PSP. |
 | **Verificación por WhatsApp + IA** | Media | WhatsApp es el canal dominante del fraude (5.509 reportes UFECI 2024): riesgo de confusión con estafa. Sin antecedentes argentinos de bots de verificación de QR; restricciones del Business API para casos financieros. |
-| **Monitoreo por cámaras + IA** | Técnica alta | El caso Shell/San Martín demuestra que las cámaras ya son la evidencia clave; el diferencial es detectar **en tiempo real** (alerta al llegar alguien al QR), no semanas después. Barreras: hardware existente, integración con VMS, falsos positivos, costo de procesamiento continuo. |
+
+> **Fuera de alcance del MVP**: el monitoreo por cámaras con IA (evaluado en la v1 de este documento) fue descartado para el MVP por la complejidad de integrar múltiples providers de videoanalítica/VMS y de aprovisionamiento de hardware. El caso Shell/San Martín ($38M, posnet adulterado) quedó documentado en §1.5 como evidencia del vector de sustitución física, no como caso de uso de producto.
 
 ### 4.3 Riesgos estructurales
 
@@ -119,7 +149,7 @@ Netcamara (https://netcamara.com/), Napsys (https://napsys.com.ar/), Vision Stud
 
 ---
 
-## 5. Blockchain: análisis técnico
+## 5. Blockchain y criptografía: análisis técnico
 
 ### 5.1 Qué aportaría (teóricamente)
 
@@ -167,16 +197,63 @@ En Argentina **ese escenario no se da**: el BCRA regula el esquema y la IEP ya i
 
 **Conclusión**: blockchain como diferencial central de QRSafe es, hoy, un buzzword en el contexto argentino. La seguridad real viene de firma del emisor + verificación en el flujo de pago existente, a menor costo, latencia y complejidad. **Híbrido defendible** (si se valora la narrativa comercial): anclaje OpenTimestamps-style de la raíz Merkle del registro en Bitcoin — costo marginal ~cero, prueba inmutable verificable incluso si QRSafe desaparece; útil solo para evidencia en disputas y no-repudio, nunca para detección en tiempo real (que queda 100% off-chain).
 
+### 5.5 Criptografía sin blockchain — verificación profunda
+
+**Compatibilidad con EMVCo MPM sin modificar el estándar: SÍ cabe una firma.**
+- El EMV MPM es un payload TLV plano (tags 00–63, donde 26–51 son plantillas de Merchant Account Information con dominio invertido del adquirente, y tag 63 = CRC-16 que solo da integridad de captura, no autenticidad de origen). La spec define **Unreserved Templates (IDs 80–99)** con contenido "context specific" fuera del scope de EMVCo: es el hueco diseñado para extensiones propietarias. Una firma Ed25519 es de 64 bytes (~86 caracteres base64), dentro del límite de 99 por valor. Las billeteras que no reconocen el GUID simplemente ignoran el tag (comportamiento estándar de parser TLV) — **agregarlo no rompe compatibilidad**. [EMV MPM spec v1.1 — https://mvallim.github.io/emv-qrcode/docs/EMVCo-Merchant-Presented-QR-Specification-v1.1.pdf]
+- **Pero el problema no es técnico sino de incentivos**: que alguien *verifique* la firma exige que las billeteras incorporen la clave y la lógica — algo que ninguna hará sin mandato del BCRA o beneficio propio. Una firma en un tag ignorado por el lector aporta **cero** seguridad.
+
+**¿Quién firmaría? Modelos de confianza:**
+1. **El adquirente** (Mercado Pago, Pagos360...): el único modelo con anclaje real — ya hizo KYC del comercio, ya es responsable ante el BCRA, ya emite el QR. Es el modelo de India UPI 2.0 (desde 2018): QRs de comercios verificados con firma digital e indicador de "comercio verificado" en la app del pagador. [BHIM/NPCI UPI 2.0 — https://www.bhimupi.org.in/upi2]
+2. **Un tercero (QRSafe) registrado ante BCRA**: técnicamente posible, comercialmente improbable — exigiría que las ~90 billeteras interoperables incorporen la clave pública de QRSafe sin que aporte nada que el adquirente no pueda firmar él mismo.
+3. **El propio comercio**: descartable a escala (gestión de claves por minoristas no es realista).
+
+**Distribución de claves y precedentes de despliegue:**
+
+| Caso | ¿QR firmado? | Escala / Efecto |
+|---|---|---|
+| **EU Digital COVID Certificate** | Sí (CBOR+COSE, ECDSA) | Despliegue masivo multi-país, verificación **offline** en el dispositivo, trust lists nacionales + gateway UE — el precedente técnico más fuerte [https://www.consilium.europa.eu/en/policies/coronavirus-pandemic/eu-digital-covid-certificate/] |
+| **India UPI 2.0** | Sí (comercios verificados, desde 2018) | Indicador "comercio verificado"; la verificación ocurre en el backend del adquirente, no en la app del consumidor [https://www.bhimupi.org.in/upi2] |
+| **Brasil Pix (QR estático)** | **No** | Ante el fraude de QR trocado, el BCB respondió con **reversibilidad (MED)** y campañas de verificación del nombre del destinatario, no con firmas [https://www.bcb.gov.br/estabilidadefinanceira/pix-seguranca] |
+| **Argentina VQR (transporte)** | No aplica | Es QR consumer-presented dinámico (nace en el teléfono del pagador): mitigación por *dinamismo*, no por firma [Com. BCRA 8206/2025] |
+
+**Veredicto criptografía**: viable y estándar-compatible, pero **no sustituye al resolve/IEP** ni previene el sticker fraud:
+1. La firma responde "este QR lo emitió X" — pero el sticker presenta un QR *distinto y perfectamente válido* emitido por la cuenta del delincuente. Una firma solo ayuda si el comercio está onboardado con un adquirente firmante — cosa que el resolve ya valida consultando el alias y mostrando el titular.
+2. Ninguna billetera verificará una firma de un tercero sin mandato regulatorio. India lo logró porque NPCI es el único esquema y lo impuso; Argentina tiene ~90 billeteras.
+3. Brasil, con el mismo problema y más escala, eligió reversibilidad + verificación de nombre en vez de firmas — evidencia de mercado sobre qué mitigación se considera efectiva.
+4. El aporte real: **registro de integridad verificable offline** (estilo DCC) o un resolve enriquecido — no criptografía per se.
+
+### 5.6 Mundo cripto y QR — ataques, players y extensión futura
+
+**Ataques documentados con QR en cripto:**
+- **Address poisoning**: en 2024, Chainalysis identificó ~82.000 direcciones spoof que intoxicaron historiales; 2.774 víctimas transfirieron US$ 69,7M (caso mayor: US$ 68M en WBTC, mayo 2024). Un paper académico de 2025 detectó **270 millones de intentos** — 13 veces más que estimaciones previas — con direcciones lookalike generadas incluso con GPUs. [Chainalysis — https://www.chainalysis.com/blog/address-poisoning-scam/] [arXiv:2501.16681 — https://www.emergentmind.com/papers/2501.16681]
+- **Crypto ATMs**: FBI IC3 registró 10.956 denuncias con US$ 246,7M perdidos en 2024 (~US$ 333M en 2025); vector típico = ingeniería social (llamada + QR enviado por SMS); también hay stickers falsos sobre ATMs legítimos y CVEs de firmware (Lamassu CVE-2024-0674). [FTC — https://www.ftc.gov/news-events/data-visualizations/data-spotlight/2024/09/bitcoin-atms-payment-portal-scammers] [DFPI — https://dfpi.ca.gov/consumers/crypto/crypto-atm-scams/]
+- **Wallet drainers** (vector dominante): US$ 494M perdidos en 2024; cayeron 83% a US$ 83,85M en 2025, atribuido a las defensas integradas en wallets. [Scam Sniffer — https://drops.scamsniffer.io/scam-sniffer-2025-crypto-phishing-losses-fall-83-to-84-million/]
+
+**Players de seguridad QR/dirección en cripto (ecosistema maduro):** Blockaid (simulación pre-firma integrada en MetaMask y Coinbase Wallet, US$ 50M Serie B 2025), Scam Sniffer (blocklists de 258K+ dominios/direcciones, consultados por Binance, Phantom, Chainalysis), Wallet Guard, Pocket Universe, y alertas anti-poisoning nativas de Binance ("Antidote").
+
+**Hipótesis del fundador: "cada wallet cripto tiene su propio mecanismo de seguridad, no tiene sentido entrar en ese mundo" — VEREDICTO: sustancialmente VÁLIDA, con matices.**
+- A favor: los mecanismos existen y son estándar (EIP-55 checksum, EIP-681 payment requests por QR, simulación pre-firma integrada); el mercado ya lo resolvió con incumbentes consolidados y financiados integrados en las wallets líderes. [EIP-681 — https://eips.ethereum.org/EIPS/eip-681]
+- Matiz clave: esos mecanismos protegen contra errores y phishing de firma, pero **NO contra la confusión de identidad del receptor** (address poisoning), que es estructuralmente idéntico al sticker fraud: el usuario cree saber a quién le paga y no contrasta la identidad real.
+- **Lección transferible cripto → fiat**: la mitigación emergente contra address poisoning es verificar por **nombre/alias en vez de por dirección** (ENS, nombres legibles), porque las direcciones son opacas para humanos. Es exactamente el problema del `collector.name` de EMVCo argentino: existe, se muestra, pero el usuario promedio no lo contrasta. La mitigación efectiva en ambos mundos es **forzar el contraste de identidad semántica**, no más criptografía. [arXiv:2501.16681]
+
+**Extensión futura QRSafe → cripto: NO recomendada como roadmap.**
+1. Mundo cerrado por wallet: la verificación efectiva ocurre *dentro* de las wallets o exchanges, con incumbentes consolidados (Blockaid, Scam Sniffer) que ya tienen APIs y distribución.
+2. El fraude QR cripto dominante no es presencial: address poisoning, drainers y BTM social engineering son vectores remotos (SMS/llamada + QR enviado a la víctima); QRSafe ataca el escenario presencial (sticker sobre QR legítimo), marginal en cripto.
+3. Excepción potencial (BTMs físicos con stickers): replica la lógica del sticker fraud, pero el volumen (US$ 246–333M/año en EE.UU.) no justifica construir para Argentina, donde la penetración de ATMs cripto es mínima.
+4. No se encontró evidencia de una brecha específica sin player que la cubra en verificación de QR cripto para usuarios finales.
+
 ---
 
 ## 6. Recomendaciones para QRSafe
 
 1. **Foco de producto**: QR estático físico sin supervisión (estaciones, gastronomía, parking, kioscos). El QR dinámico ya es seguro (Pronto Pago reporta 0% de fraude).
-2. **Arquitectura núcleo** (sin blockchain): registro firmado de hashes de QRs legítimos + verificación integrada al flujo existente (IEP/API resolve o app propia), con QRs emitidos firmados (Ed25519/CBOR). Especificación validada académicamente.
-3. **Diferencial defensible**: monitoreo en tiempo real por cámaras con IA (detección de aproximación/manipulación del QR) — sin competidor directo, con el caso Shell como evidencia de que las cámaras son la prueba clave. Integrar con VMS locales (Netcamara, USS, IP Security) en vez de competir.
-4. **Go-to-market**: vía banderas/asociaciones (AOYPF, FECRA) y adquirentes T3.0, evitando ser PSP propio en una primera etapa (complejidad regulatoria + tope de comisión 0,8%).
+2. **Núcleo del producto — contraste de identidad del receptor**: la evidencia internacional converge (BCB/Pix: verificación de nombre + reversibilidad; NPCI/UPI: indicador de comercio verificado; papers de address poisoning: defensas a nivel UI) en que el punto de fallo es que el usuario no contrasta quién cobra. La propuesta de valor central de QRSafe debe ser forzar ese contraste (nombre esperado del comercio vs. `collector.name` resuelto), no más criptografía.
+3. **Arquitectura** (sin blockchain): registro firmado de hashes de QRs legítimos + verificación integrada al flujo existente (IEP/API resolve o app propia). La firma Ed25519 en Unreserved Templates (80–99) es viable y compatible con el estándar EMVCo, pero solo aporta si hay billeteras/adquirentes que verifiquen — tratarla como capa opcional de registro verificable, no como núcleo.
+4. **Go-to-market**: vía banderas/asociaciones (AOYPF, FECRA) y adquirentes T3.0, evitando ser PSP propio en una primera etapa (complejidad regulatoria + tope de comisión 0,8%). Modelo B2B2C: ningún incumbente internacional (todos B2C URL-checkers en contracción) ocupará este terreno.
 5. **Blockchain**: descartar como núcleo; mantener como anclaje opcional de hashes si aporta a la narrativa comercial, con comunicación honesta (la detección ocurre off-chain).
-6. **Generar el dato**: no existe estadística nacional de fraude por QR sustituido — construirla (con comercio anónimizado) es una ventaja competitiva y de posicionamiento.
+6. **Mundo cripto**: descartar como extensión de producto. Las wallets ya tienen mecanismos propios (EIP-55/681, simulación pre-firma, blocklists) con incumbentes consolidados; el fraude QR cripto dominante es remoto, no presencial.
+7. **Generar el dato**: no existe estadística nacional de fraude por QR sustituido — construirla (con comercio anónimizado) es una ventaja competitiva y de posicionamiento.
 
 ---
 
@@ -186,4 +263,7 @@ En Argentina **ese escenario no se da**: el BCRA regula el esquema y la IEP ya i
 - No se encontró un caso policial resuelto específicamente de sticker sobre QR en estaciones YPF; los casos documentados de estaciones son fraude interno y adulteración de posnet.
 - Los datos de crecimiento de quishing (+150% T1 2026) provienen de prensa que cita fuentes extranjeras no verificables para Argentina.
 - No se auditó el interior de la app de ninguna billetera; las afirmaciones sobre "qué no ofrecen" se basan en documentación pública y comunicados.
-- Fuentes raw completas de los agentes: `C:\Users\prueba\AppData\Local\Temp\opencode\research-qrsafe-mercado.md` y `research-qrsafe-blockchain.md` (temporal, fuera del repo).
+- Los detalles criptográficos del firmado UPI 2.0 (algoritmo exacto, formato de clave) no son públicos: NPCI restringe sus especificaciones a bancos miembro; se documentó el mecanismo a partir de fuentes oficiales de divulgación.
+- El research de players internacionales se basa en documentación pública de los productos (sitios oficiales, stores); el estado de disponibilidad en stores puede variar por región y fecha.
+- Cambios de alcance documentados: el monitoreo por cámaras (v1) fue excluido del MVP por decisión de producto (complejidad de providers); el contenido de la v1 sobre videoanalítica fue retirado de este documento.
+- Fuentes raw completas de los agentes (temporal, fuera del repo): `research-qrsafe-mercado.md`, `research-qrsafe-blockchain.md`, `research-qrsafe-players.md` y `research-qrsafe-cripto.md` en `C:\Users\prueba\AppData\Local\Temp\opencode\`.
