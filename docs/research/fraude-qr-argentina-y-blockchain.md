@@ -1,25 +1,18 @@
 # Research: Fraude QR en Argentina, players internacionales, criptografía y blockchain — QRSafe
 
-> Fecha: 2026-08-22 (v4: conciliación para Domain Modeling con `conciliacion-domain-modeling.md`) · Alcance: Argentina + paisaje internacional · Método: investigación contra fuentes primarias (BCRA/CIMPRA, MPF/UFECI, EMVCo, W3C, NIST, BCB, NPCI, FTC, papers académicos) por agentes paralelos, sintetizada en este documento. Fuente de verdad de producto B2B: `tesis-identity-binding-b2b.md`. Las afirmaciones que solo aparecen en prensa están marcadas como *fuente secundaria*.
+> Fecha: 2026-08-22 (v3: conciliación con la tesis de Identity Binding — `tesis-identity-binding-b2b.md`, source of truth de la propuesta B2B) · Alcance: Argentina + paisaje internacional · Método: investigación contra fuentes primarias (BCRA/CIMPRA, MPF/UFECI, EMVCo, W3C, NIST, BCB, NPCI, FTC, papers académicos) por agentes paralelos, sintetizada en este documento. Las afirmaciones que solo aparecen en prensa están marcadas como *fuente secundaria*.
 
 ---
 
 ## Resumen ejecutivo
 
-1. **El problema existe y está regulado a medias**: la normativa argentina (BCRA/CIMPRA) obliga a billeteras y PSP a mitigar fraude *transaccional*, pero no identificamos una obligación específica de integridad física del QR exhibido en el comercio (la "última pulgada" anti-sticker). El QR de comercio EMVCo no incorpora una firma criptográfica anti-sustitución; VQR de transporte sí combina dinamismo con firmas criptográficas.
-2. **No hay estadística pública nacional desagregada de fraude por sustitución de QR** (UFECI no lo tipifica; BCRA reporta reclamos agregados). Eso es a la vez un riesgo (mercado difícil de dimensionar) y una oportunidad (QRSafe puede generar el dato).
-3. **El espacio aparece actualmente desatendido en el research realizado**: no identificamos una empresa argentina dedicada específicamente a verificar QR de pago contra la identidad/contexto del comercio. Los escáneres internacionales relevados (Kaspersky, Norton, Trend Micro, Bitdefender, "Is This QR Safe?") verifican reputación de URLs contra phishing; no encontramos evidencia de que validen sustitución de un QR EMVCo de pago contra un binding QR↔comercio. El ataque argentino (sticker con QR EMVCo válido del estafador) no requiere un link malicioso: el problema es quién cobra. La categoría B2C relevada también muestra discontinuaciones, productos sin actualizaciones y micro-apps.
-4. **Blockchain como diferencial central no se justifica con la evidencia actual**: existe un tercero de confianza online regulado (BCRA + IEP/API resolve que ya se consulta en cada pago), lo que no satisface el criterio académico estándar de Wüst & Gervais. La criptografía requiere una distinción fina (ver §5.5): la **firma embebida en el QR verificada por terceros** (billeteras/adquirentes) es improbable sin mandato del BCRA, mientras que el **registro propio de QRs autorizados verificado en canal propio** — decisión de la tesis B2B — puede construirse sin exigir integración obligatoria con billeteras.
-5. **Premisa de producto (validity ≠ authenticity)**: un QR técnicamente válido no es necesariamente legítimo para el contexto donde aparece. El sticker fraud presenta un QR *perfectamente válido* apuntando a la cuenta del atacante; la propiedad a verificar es que **ese QR específico haya sido autorizado para el comercio y contexto de pago que el usuario espera**. El contexto esperado debe provenir de una fuente independiente del QR observado (ver §3.4).
+1. **El problema existe y está regulado a medias**: la normativa argentina (BCRA/CIMPRA) obliga a billeteras y PSP a mitigar fraude *transaccional*, pero **nadie cubre la integridad física del QR exhibido en el comercio** (la "última pulgada" anti-sticker). El QR de comercio EMVCo no tiene firma criptográfica anti-sustitución; solo el QR de transporte (VQR) la tiene.
+2. **No existe estadística pública nacional de fraude por sustitución de QR** (UFECI no lo tipifica; BCRA reporta reclamos agregados). Eso es a la vez un riesgo (mercado difícil de dimensionar) y una oportunidad (QRSafe puede generar el dato).
+3. **Espacio competitivo vacío en Argentina y a nivel internacional**: ninguna empresa argentina se dedica a verificación de QR de pago. Los escáneres seguros internacionales (Kaspersky, Norton, Trend Micro, Bitdefender, "Is This QR Safe?") verifican **reputación de URLs** contra phishing — **ninguno valida la sustitución de un QR de pago EMVCo ni el binding QR↔comercio**. El ataque argentino (sticker con QR EMVCo válido del estafador) es invisible para todos ellos: el fraude no está en el link, está en quién cobra. Además, la categoría B2C de "QR security scanner" está en contracción (Kaspersky QR Scanner discontinuado iOS 2022 y fuera de Google Play 2024; Norton Snap EOL 2019; Trend Micro sin updates desde 2023), y el lado comercio queda cubierto solo por consejos manuales.
+4. **Blockchain como diferencial central es un buzzword en el contexto argentino**: existe un tercero de confianza online regulado (BCRA + IEP/API resolve que ya se consulta en cada pago), lo que invalida el criterio académico estándar (Wüst & Gervais). La criptografía requiere además una distinción fina (ver §5.5): la **firma embebida en el QR verificada por terceros** (billeteras/adquirentes) es improbable sin mandato del BCRA, pero el **registro propio de QRs autorizados verificado en canal propio** — el modelo de la tesis B2B — no depende de la cooperación de ninguna billetera y es desplegable hoy.
+5. **Premisa de producto (validity ≠ authenticity)**: un QR técnicamente válido no es necesariamente legítimo para el contexto donde aparece. El sticker fraud presenta un QR *perfectamente válido* apuntando a la cuenta del atacante; la propiedad que nadie garantiza hoy es que **ese QR específico haya sido autorizado por el negocio que el consumidor cree estar pagando**. La evidencia internacional (BCB/Pix, NPCI/UPI, papers de address poisoning) confirma que el punto de fallo es de identidad/pertenencia, no de contenido — pero el contraste semántico por nombre (`collector.name`) tiene una debilidad propia (razón social vs. nombre de fantasía, ver §5.6), mientras que el binding por fingerprint no depende del nombre.
 6. **Extensión al mundo cripto: no recomendada**. La hipótesis de que cada wallet tiene su propio mecanismo de seguridad se valida sustancialmente: EIP-55/EIP-681, simulación pre-firma (Blockaid en MetaMask/Coinbase, US$50M Serie B 2025) y blocklists (Scam Sniffer) ya cubren el espacio, y el fraude QR cripto dominante es remoto (ingeniería social), no presencial.
-7. **Recomendación de foco**: el nicho real es el **QR estático físico sin supervisión** (estaciones, gastronomía, parking, kioscos). El MVP se concreta como **identity binding**: `contexto físico / identidad esperada ↔ QR autorizado ↔ destino de pago esperado`, con verificación en canal propio que afirma pertenencia/no-pertenencia — nunca "seguridad" o fraude del QR. La adopción del verificador, el KYC comercial y el anchor de contexto son hipótesis críticas, no hechos demostrados (ver §7). *(Nota de alcance: el monitoreo por cámaras con IA, evaluado en la v1 de este documento, quedó fuera del MVP por complejidad de integración con providers de videoanalítica.)*
-
-### Cómo interpretar este documento (v4)
-
-- **Hechos observados / evidencia**: §1–§3 y las fuentes citadas.
-- **Conclusiones derivadas**: §4 y §5; interpretan la evidencia, no la reemplazan.
-- **Decisiones de producto**: §3.4 y §6; provienen de la tesis B2B, no de una fuente externa.
-- **Preguntas abiertas / hipótesis**: §7; no deben presentarse como evidencia ni cerrarse durante Domain Modeling sin discovery adicional.
+7. **Recomendación de foco**: el nicho real es el **QR estático físico sin supervisión** (estaciones, gastronomía, parking, kioscos). El MVP se concreta como **identity binding**: registro verificable `identidad del comercio ↔ QR autorizado ↔ destino de pago`, con verificación en canal propio (app QRSafe) que afirma pertenencia/no-pertenencia — nunca "seguridad" del QR. **El principal riesgo estructural del modelo es la adopción del verificador** (el paso extra de escanear antes de pagar; ver §4.3). *(Nota de alcance: el monitoreo por cámaras con IA, evaluado en la v1 de este documento, quedó fuera del MVP por complejidad de integración con providers de videoanalítica.)*
 
 ---
 
@@ -28,7 +21,7 @@
 ### 1.1 Cómo funciona el fraude
 
 - El QR de pago argentino sigue el estándar **EMVCo Merchant Presented Mode**. Los QR **estáticos** (imprimibles, reutilizables, identifican al aceptador en campos 26–49) se resuelven vía "API resolve" del adquirente, que devuelve el `collector` (nombre/CUIT/cuenta). El QR **no está firmado criptográficamente** contra sustitución física: quien controla la imagen impresa controla la cuenta destino. [Boletín CIMPRA 525 — https://www.bcra.gob.ar/archivos/Pdfs/SistemasFinancierosYdePagos/Boletin-CIMPRA-525.pdf] [Boletín CIMPRA 530 — https://www.bcra.gob.ar/archivos/Pdfs/SistemasFinancierosYdePagos/Boletin_CIMPRA_530.pdf]
-- **Viaje con QR (VQR, transporte)** es un esquema *consumer-presented*, dinámico y firmado criptográficamente: las billeteras firman con ED25519 y los validadores verifican integridad, TTL y listas de denegación. El dinamismo reduce la aplicabilidad del vector de sticker porque el código nace en el teléfono del pagador; la firma protege su integridad. Esta combinación no está incorporada al QR de comercio. [Boletín CIMPRA 544 — https://www.bcra.gob.ar/archivos/Pdfs/SistemasFinancierosYdePagos/Boletin-CIMPRA-544.pdf]
+- La única firma criptográfica fuerte existe en **Viaje con QR (VQR, transporte)**: billeteras firman con ED25519 y los validadores verifican integridad, TTL y listas de denegación. El BCRA ya resolvió este problema para transporte, pero **no** para el QR de comercio. [Boletín CIMPRA 544 — https://www.bcra.gob.ar/archivos/Pdfs/SistemasFinancierosYdePagos/Boletin-CIMPRA-544.pdf]
 - Las transferencias (PCT) son **"de acreditación inmediata, irrevocables"** — condición que hace rentable el fraude. [BCRA, Transferencias 3.0 — https://www.bcra.gob.ar/noticias/transferencia-con-qr/]
 - A nivel técnico, el EMV MPM solo tiene CRC-16 (detección de errores, no de falsificación): el atacante no modifica el QR legítimo sino que genera uno nuevo válido apuntando a su cuenta. [EMV QRCPS spec — https://www.emvco.com/emv-technologies/qr-codes/] [Con Vos en la Web (Min. Justicia) — https://www.argentina.gob.ar/justicia/convosenlaweb/situaciones/como-me-protejo-al-utilizar-un-codigo-qr]
 
@@ -61,7 +54,7 @@
 | Com. A 8298 + B 13117 (feb. 2026) | Central de Prevención de Fraude (CPF): reporte y consulta obligatorios de eventos de fraude | https://www.bcra.gob.ar/archivos/Pdfs/comytexord/B13117.pdf |
 | Disposición Energía NO-2022-118638566 | Obliga a eliminar el QR de surtidores/columnas en áreas clasificadas de estaciones (motivo incendio, no fraude) y reubicarlo | https://surtidores.com.ar/wp-content/uploads/2022/11/NO-2022-118638566-APN-DNRYCMEC1-2.pdf |
 
-**Hallazgo clave**: la normativa obliga a *billeteras, PSP y administradores* a mitigar fraude transaccional, pero el research no identificó una obligación específica de seguridad física/integridad del QR exhibido. El proyecto de ley 4661-D-2025 (Registro Nacional de Incidentes de Ciberfraude) aún no es ley. [https://www4.hcdn.gob.ar/dependencias/dsecretaria/Periodo2025/PDF2025/TP2025/4661-D-2025.pdf]
+**Hallazgo clave**: la normativa obliga a *billeteras, PSP y administradores* a mitigar fraude transaccional, pero **no existe obligación de seguridad física/integridad del QR exhibido**. Nadie regula la "última pulgada" física del QR. El proyecto de ley 4661-D-2025 (Registro Nacional de Incidentes de Ciberfraude) aún no es ley. [https://www4.hcdn.gob.ar/dependencias/dsecretaria/Periodo2025/PDF2025/TP2025/4661-D-2025.pdf]
 
 ### 1.5 Casos documentados por segmento
 
@@ -93,7 +86,7 @@
 
 ### 3.2 Startups de verificación QR / anti-quishing
 
-**Hallazgo del research: no identificamos una empresa argentina dedicada específicamente a verificación de QR / anti-tampering de QR de pago.** Las búsquedas devolvieron adyacentes: acortadores con QR para marketing (https://tw.com.ar/), verificación de identidad genérica (https://aidi.com.ar/empresas/), motores antifraude transaccional e-commerce (https://www.wondersoft.com.ar/). Lo más cercano regional: Depay (QR cross-border, menciona prevención de QRs maliciosos como feature de infraestructura — https://bankmagazine.com.ar/la-tecnologia-detras-del-qr/). El espacio aparece desatendido, dentro del alcance y fecha de esta búsqueda.
+**Hallazgo central: no existe ninguna empresa argentina dedicada específicamente a verificación de QR / anti-tampering de QR de pago.** Las búsquedas devuelven solo adyacentes: acortadores con QR para marketing (https://tw.com.ar/), verificación de identidad genérica (https://aidi.com.ar/empresas/), motores antifraude transaccional e-commerce (https://www.wondersoft.com.ar/). Lo más cercano regional: Depay (QR cross-border, menciona prevención de QRs maliciosos como feature de infraestructura — https://bankmagazine.com.ar/la-tecnologia-detras-del-qr/). **Espacio vacío documentable.**
 
 ### 3.3 Players internacionales de verificación/escaneo seguro de QR
 
@@ -116,61 +109,15 @@
 | QRTracker Safe Scan / QRLynx | Activos, pero son **generadores** con higiene de URLs (B2B marketing, no pagos) | Screening de URLs de códigos que ellos generan [https://qrtracker.io/safe-scan] |
 
 **Startups anti-quishing / lado comercio (global):**
-- No identificamos en este research una startup consolidada (con funding) dedicada a "QR payment substitution / merchant QR protection" como producto comercial. El boom quishing 2023-2026 generó herramientas, pero las relevadas son mayormente consumer URL-checkers o features de vendors grandes. [https://www.startupdefense.io/blog/quishing-attacks-qr-code-phishing-startups]
+- No se encontró ninguna startup consolidada (con funding) dedicada a "QR payment substitution / merchant QR protection" como producto comercial. El boom quishing 2023-2026 generó herramientas, pero casi todas son consumer URL-checkers o features de vendors grandes. [https://www.startupdefense.io/blog/quishing-attacks-qr-code-phishing-startups]
 - El player B2B más cercano conceptualmente: **MSME SecureX (India)** — "AI-powered payment fraud protection for Indian businesses... fake UPI screenshots, QR tampering", UPI-first, WhatsApp integration. Replicarlo en Argentina requeriría re-architecture completo al ecosistema Transferencias 3.0. [https://www.msmesecurex.com/]
 - Académico sin producto comercial: detección visual de QRIS falsificados (Indonesia) con CNN + validación de payload EMVCo logra 95% de precisión, pero los autores reconocen que **no pueden verificar el merchant real** "due to restricted access to Bank Indonesia's official merchant database" — exactamente el problema que QRSafe ataca. [ResearchGate — https://www.researchgate.net/publication/364593009]
-- **LatAm/Argentina: no identificamos un player dedicado** dentro del research realizado. Las apps en español relevadas son traducciones de indie apps de URL-checking.
+- **LatAm/Argentina: no se encontró ningún player dedicado.** Las apps en español son traducciones de indie apps de URL-checking.
 
 **Análisis de encaje — hipótesis CONFIRMADA:**
-> "Los escáneres seguros relevados verifican reputación de URLs contra phishing/quishing; no encontramos evidencia de que validen la sustitución de un QR de pago EMVCo contra un binding físico QR↔comercio, por lo que el caso argentino aparece desatendido."
+> "Los escáneres seguros existentes verifican reputación de URLs contra phishing/quishing, PERO ninguno valida la sustitución de un QR de pago EMVCo ni el binding físico QR↔comercio, y por lo tanto no cubren el caso argentino."
 
-El matiz clave: el ataque de sticker **no requiere que la URL sea maliciosa**. Un QR EMVCo genuino del estafador (con su propio CVU/alias legítimamente registrado) pasa limpio por los escáneres relevados — el fraude está en la identidad del cobrador, no en el link. No encontramos evidencia de que esos players tengan una base de datos de comercios argentinos, integración con el ecosistema local (BCRA/CIMPRA), ni un modelo de negocio para el merchant. Diferencia de público: los players relevados son **B2C consumidor** (el individuo debe instalar una app extra e interpretar un veredicto de URL); QRSafe plantea un modelo **B2B2C** (el comercio mantiene bindings y el pagador recibe la validación). El espacio aparece actualmente desatendido: la categoría relevada está en contracción y el lado merchant recibe principalmente consejos manuales de auditoría física. [Global Payments Integrated — https://www.globalpaymentsintegrated.com/en-us/blog/2022/03/29/5-ways-isvs-can-help-protect-merchants-against-qr-code-scams]
-
-### 3.4 Modelo B2B conciliado (decisión de producto)
-
-> Esta sección es una decisión de producto derivada de `tesis-identity-binding-b2b.md` y `conciliacion-domain-modeling.md`; no es evidencia externa.
-
-**Unidad de confianza:**
-
-```text
-Contexto físico / identidad esperada
-        ↕
-QR autorizado
-        ↕
-Destino de pago esperado
-```
-
-El modelo previo `Merchant Identity ↔ QR autorizado ↔ destino` era incompleto para detectar sustitución: un QR válido de un atacante puede pertenecer correctamente a ese atacante. Para producir un `MISMATCH`, QRSafe necesita una vía independiente para saber qué comercio o punto de cobro **debería** estar presente antes de comparar el QR observado.
-
-| Término | Definición de dominio | No debe confundirse con |
-|---|---|---|
-| **Merchant Identity** | Identidad que QRSafe reconoce como perteneciente a un comercio real y previamente verificado. | Nombre de fantasía, razón social, `collector.name`, dominio web o identidad del adquirente. |
-| **Physical / Payment Context** | Contexto en el que el usuario espera pagar: sucursal, mesa, surtidor, terminal o punto de cobro. Responde a "¿a quién debería estar pagando acá?". | El QR observado. |
-| **Authorized QR** | QR declarado por una Merchant Identity verificada y registrado como autorizado para uno o más contextos. | Cualquier QR técnicamente válido. |
-| **Payment Destination** | Representación del destino de pago del QR: payload EMVCo, adquirente, cuenta/alias, `collector` y metadatos disponibles. | La identidad comercial por sí sola. |
-| **Binding** | Relación registrada `Merchant Identity + Physical / Payment Context + Authorized QR + Expected Payment Destination`. | Un hash aislado o una evaluación de seguridad. |
-| **Observed QR** | QR recibido en una verificación; inicialmente no tiene estado de confianza. | Un Authorized QR. |
-| **Verification** | Comparación entre `Observed QR` y el `Binding` esperado para el contexto. | Detección o acusación de fraude. |
-
-**Estados de verificación:**
-
-| Estado | Condición | Significado permitido |
-|---|---|---|
-| `VERIFIED` | Merchant Identity verificada + contexto esperado + Observed QR coincide con Authorized QR + Binding vigente. | "Este QR está registrado como autorizado para este comercio/contexto". |
-| `MISMATCH` | Merchant Identity verificada + contexto esperado + Observed QR no coincide con los Authorized QR vigentes. | "Este QR no está registrado como autorizado para este comercio/contexto". No implica fraude. |
-| `UNKNOWN` / `UNREGISTERED` | No existe información suficiente para comparar: comercio/contexto/binding/QR no registrado. | Ausencia de evidencia; no es sospecha ni no-pertenencia. |
-| `EXPIRED` / `STALE` | Binding anteriormente válido que dejó de estar vigente. | Requiere actualizar o reemplazar el binding; no equivale automáticamente a fraude. |
-| `REVOKED` | Binding invalidado explícitamente por la Merchant Identity o QRSafe tras evidencia suficiente. | QR previamente autorizado que ya no debe usarse en ese contexto. |
-
-**Invariantes de producto:**
-
-1. `validity ≠ authenticity`: un QR técnicamente válido puede no ser auténtico para el contexto donde aparece.
-2. QRSafe verifica pertenencia, no fraude: solo puede afirmar autorización/no-pertenencia respecto de un binding.
-3. `UNKNOWN ≠ MISMATCH`: ausencia de evidencia no equivale a evidencia de no-pertenencia.
-4. No existe binding confiable sin una Merchant Identity previamente verificada.
-5. El QR observado no puede definir por sí mismo el contexto esperado.
-6. Un comercio puede tener múltiples QRs legítimos, sucursales y puntos de cobro.
-7. El binding tiene ciclo de vida: `created → active → replaced | revoked | expired`.
+El matiz clave: el ataque de sticker **no requiere que la URL sea maliciosa**. Un QR EMVCo genuino del estafador (con su propio CVU/alias legítimamente registrado) pasa limpio por todos estos escáneres — el fraude está en la identidad del cobrador, no en el link. Ningún player internacional tiene base de datos de comercios argentinos, integración con el ecosistema local (BCRA/CIMPRA), ni modelo de negocio para el merchant. Diferencia de público: todos son **B2C consumidor** (el individuo debe instalar una app extra e interpretar un veredicto de URL); QRSafe opera **B2B2C** (el comercio registra y verifica su QR; el pagador recibe la validación). Ningún incumbente internacional ocupará ese terreno: la categoría está en contracción y el lado merchant solo recibe consejos manuales de auditoría física. [Global Payments Integrated — https://www.globalpaymentsintegrated.com/en-us/blog/2022/03/29/5-ways-isvs-can-help-protect-merchants-against-qr-code-scams]
 
 ---
 
@@ -178,10 +125,10 @@ El modelo previo `Merchant Identity ↔ QR autorizado ↔ destino` era incomplet
 
 ### 4.1 Gaps no cubiertos
 
-1. **Binding identidad/contexto ↔ QR autorizado**: no identificamos en el research un registro público o comercial que vincule un QR de pago con el comercio **y contexto** que lo autorizó. El estándar EMVCo de comercio no incorpora firma anti-sustitución. Es el gap que la tesis de Identity Binding convierte en producto: la pregunta no es "¿este QR es seguro?" sino "¿es uno de los QRs autorizados para el comercio y punto de pago al que estoy intentando pagar?".
-2. **Detección temprana**: no identificamos un producto que detecte el cambio de QR por patrón de pagos (caída abrupta de ingresos del comercio, discrepancia volumen/ventas como en los casos San Juan/Shell). Con la tesis como alcance, la detección es *a demanda*: ocurre cuando existe una verificación contra un contexto esperado.
-3. **Canal de verificación para el pagador**: no identificamos en la documentación pública de billeteras una señal de "QR verificado por el comercio" independiente del `collector.name`. El canal propio de QRSafe puede verificar un binding sin integración obligatoria con billeteras, pero agrega fricción y requiere resolver primero el contexto esperado.
-4. **Anchor de identidad física (trust-model requirement, CRÍTICO y no resuelto)**: verificar el binding exige resolver *"¿qué comercio/punto de pago debería estar presente acá?"* por una vía independiente del QR observado. Mecanismos candidatos (búsqueda manual, GPS, foto del local, identificador físico propio) no fueron investigados en este documento. Es además el mismo gap que la literatura académica documenta del lado del regulador (estudio QRIS/Indonesia: "restricted access to official merchant database").
+1. **Binding identidad ↔ QR autorizado**: no existe ningún registro — público ni comercial — que vincule un QR legítimo con el comercio que lo autorizó. El estándar EMVCo de comercio no tiene firma anti-sustitución (solo VQR/transporte la tiene). Es exactamente el gap que la tesis de Identity Binding convierte en producto: la pregunta no es "¿este QR es seguro?" sino "¿es uno de los QRs autorizados por el comercio al que estoy intentando pagar?".
+2. **Detección temprana**: no existe producto que detecte el cambio de QR (ni por patrón de pagos — caída abrupta de ingresos del comercio, discrepancia volumen/ventas como en los casos San Juan/Shell). Con la tesis como alcance, la detección es *a demanda*: ocurre cuando existe una verificación.
+3. **Canal de verificación para el pagador**: ninguna billetera muestra una señal de "QR verificado por el comercio" independiente del `collector.name` (que el usuario promedio no contrasta). Nota del modelo: este gap no requiere adhesión de billeteras para atacarse — el canal propio (app QRSafe) puede resolver el binding sin cooperación de nadie, a costa de fricción para el usuario.
+4. **Anchor de identidad física (gap abierto, sin investigar)**: verificar el binding exige resolver *"¿qué comercio hay enfrente?"* — la otra mitad del vínculo físico → identidad. Mecanismos candidatos (búsqueda manual, GPS, foto del local) no fueron investigados en este documento. Es además el mismo gap que la literatura académica documenta del lado del regulador (estudio QRIS/Indonesia: "restricted access to official merchant database").
 5. **Estadística específica**: la dimensión real del fraude por QR sustituido es invisible; generarlo es una ventaja defensible.
 6. Las recomendaciones oficiales actuales son puramente manuales ("fijarse si hay sticker encima", "inspección diaria").
 
@@ -189,7 +136,7 @@ El modelo previo `Merchant Identity ↔ QR autorizado ↔ destino` era incomplet
 
 | Canal | Viabilidad | Notas clave |
 |---|---|---|
-| **App propia (verificador de binding) — MVP elegido por la tesis** | Media-alta | Resuelve un contexto esperado independiente y contrasta el payload/fingerprint del QR observado contra bindings vigentes de QRSafe (`Merchant Identity + Context + Authorized QR + Payment Destination`). El registro es el producto, no una barrera externa. No requiere integración obligatoria con billeteras ni adquirentes, pero sí un mecanismo de KYC comercial y un anchor físico confiable. Debe diferenciar `VERIFIED`, `MISMATCH`, `UNKNOWN` y `EXPIRED/STALE`. Limitar la respuesta a pertenencia/no-pertenencia reduce la superficie de claims; el efecto concreto sobre responsabilidad legal requiere asesoramiento jurídico. |
+| **App propia (verificador de binding) — MVP elegido por la tesis** | Media-alta | Decodifica el string EMVCo y lo contrasta contra el registro de QRs autorizados de QRSafe (hash/fingerprint + metadatos del destino). El registro no existe — construirlo **es el producto**, no una barrera externa. No requiere cooperación de billeteras ni adquirentes. El riesgo de responsabilidad ("aprueba un QR que luego resulta fraudulento") queda mitigado por el framing de la tesis: la app afirma solo *pertenencia* ("autorizado por Comercio X") o *no-pertenencia* ("no registrado por Comercio X"), nunca que el QR o la cuenta sean "seguros" — no acusa fraude, constata no-pertenencia. |
 | **Layer intermedio (PSP/middleware)** | Alta técnica, regulatoriamente delicada — **fuera del MVP** | Ser PSP exige registro BCRA, CIMPRA, integración con administrador (COELSA, Red Link, Newpay) y sponsor bancario; el tope de comisión PCT (0,8%) acota el margen. La tesis descarta explícitamente ser billetera/PSP/procesar la transacción en la v1; queda como posible evolución vía integración con adquirentes T3.0 (resolve enriquecido). |
 | **Verificación por WhatsApp + IA** | Media — candidato a reducir fricción del MVP | WhatsApp es el canal dominante del fraude (5.509 reportes UFECI 2024): riesgo de confusión con estafa. Sin antecedentes argentinos de bots de verificación de QR; restricciones del Business API para casos financieros. Podría funcionar como canal alternativo al de la app (evitar instalar una app extra), pero hereda el problema de confiar el anchor de identidad a un canal de fraude dominante. |
 
@@ -197,10 +144,10 @@ El modelo previo `Merchant Identity ↔ QR autorizado ↔ destino` era incomplet
 
 ### 4.3 Riesgos estructurales
 
-- **Adopción del verificador — hipótesis crítica, no hecho demostrado**: el binding en canal propio exige que el pagador verifique antes de pagar (paso extra voluntario). Este research relevó una categoría B2C con productos discontinuados o de micro-escala, pero no aporta una métrica trazable que demuestre la frecuencia de verificación que el MVP necesita. La tesis lo reconoce con honestidad ("la detección ocurre cuando existe una verificación"). Es una hipótesis de arranque en frío de doble mercado (comercios registrados ↔ usuarios verificadores) que debe validarse como `HYP-03`; ver §7.3.
+- **Adopción del verificador — el principal riesgo del modelo elegido**: el binding en canal propio exige que el pagador escanee con QRSafe *antes* de pagar con su billetera (paso extra voluntario). La evidencia adversa ya documentada en §3.3 aplica directamente: 73% de los usuarios escanea sin verificar destino, y la categoría B2C de checkers tiene adopción estructuralmente baja por ese paso extra. La tesis lo reconoce con honestidad ("la detección ocurre cuando existe una verificación") — sin verificación no hay detección, y sin masa crítica de comercios registrados no hay razón para verificar. Es un problema de arranque en frío de doble mercado (comercios registrados ↔ usuarios verificadores). Mitigaciones a explorar: ver pregunta abierta §7.5.
 - **Asimetría de incentivos**: el fraude de QR estático recae en el comercio/cliente, no en billeteras/adquirentes (la Com. A 8032 protege a los adquirentes de contracargos). Para QRSafe es también una ventaja: el comercio es el actor con incentivo directo (pierde la venta y la confianza) — es el pagador del B2B2C.
 - **Tendencia regulatoria a favor**: la CPF obligatoria y el proyecto de Registro Nacional de Incidentes crean infraestructura de datos con la que QRSafe podría integrarse.
-- **Dato adverso a interpretar con cautela**: Pronto Pago reporta "0% de fraude" en QR dinámico de facturas. Es evidencia secundaria y específica de esa implementación; no permite concluir que todo QR dinámico sea seguro. Los QR dinámicos reducen materialmente la exposición al vector de sustitución física estudiado, pero pueden conservar otros vectores de fraude. *(Fuente secundaria: iProfesional, 31/08/2025 — https://www.iprofesional.com/negocios/436086-que-ventajas-tienen-los-pagos-de-facturas-por-qr-que-son-boom-en-argentina)*
+- **Dato adverso a verificar**: Pronto Pago reporta "0% de fraude" en QR dinámico de facturas — el problema se concentra en el **QR estático físico**, exactamente el nicho del producto. *(Fuente secundaria: iProfesional, 31/08/2025 — https://www.iprofesional.com/negocios/436086-que-ventajas-tienen-los-pagos-de-facturas-por-qr-que-son-boom-en-argentina)*
 
 ---
 
@@ -270,12 +217,12 @@ En Argentina **ese escenario no se da**: el BCRA regula el esquema y la IEP ya i
 | **EU Digital COVID Certificate** | Sí (CBOR+COSE, ECDSA) | Despliegue masivo multi-país, verificación **offline** en el dispositivo, trust lists nacionales + gateway UE — el precedente técnico más fuerte [https://www.consilium.europa.eu/en/policies/coronavirus-pandemic/eu-digital-covid-certificate/] |
 | **India UPI 2.0** | Sí (comercios verificados, desde 2018) | Indicador "comercio verificado"; la verificación ocurre en el backend del adquirente, no en la app del consumidor [https://www.bhimupi.org.in/upi2] |
 | **Brasil Pix (QR estático)** | **No** | Ante el fraude de QR trocado, el BCB respondió con **reversibilidad (MED)** y campañas de verificación del nombre del destinatario, no con firmas [https://www.bcb.gov.br/estabilidadefinanceira/pix-seguranca] |
-| **Argentina VQR (transporte)** | Sí | Es QR *consumer-presented* y dinámico (nace en el teléfono del pagador), con firmas ED25519 verificadas por los validadores. El dinamismo reduce el vector de sticker y la firma protege la integridad; no es una mitigación "por dinamismo, no por firma". [Boletín CIMPRA 544 — https://www.bcra.gob.ar/archivos/Pdfs/SistemasFinancierosYdePagos/Boletin-CIMPRA-544.pdf] |
+| **Argentina VQR (transporte)** | No aplica | Es QR consumer-presented dinámico (nace en el teléfono del pagador): mitigación por *dinamismo*, no por firma [Com. BCRA 8206/2025] |
 
 **Veredicto criptografía** (revisado en v3 — el veredicto v2 mezclaba dos mecanismos distintos bajo una sola conclusión):
 
 1. **Firma embebida en el QR, verificada por terceros (billeteras/adquirentes): improbable sin mandato regulatorio.** Ninguna billetera verificará una firma de un tercero sin mandato del BCRA; India lo logró porque NPCI es el único esquema y lo impuso, Argentina tiene ~90 billeteras. Además la firma responde "este QR lo emitió X" — pero el sticker presenta un QR *distinto y perfectamente válido* emitido por la cuenta del delincuente; la firma solo ayuda si el comercio está onboardado con un adquirente firmante, cosa que el resolve ya valida consultando el alias y mostrando el titular.
-2. **Registro propio de QRs autorizados, verificado en canal propio (modelo de la tesis Identity Binding): el argumento de incentivos de las billeteras no aplica de la misma forma.** QRSafe puede consultar su propio registro sin exigir que una billetera valide una firma. La propuesta opera fuera del flujo de pago, en el gap de verificación de pertenencia identificado por este research. La unidad de confianza no es el QR aislado sino `Merchant Identity verificada + Physical / Payment Context + Authorized QR + Expected Payment Destination`; lo que el usuario compra no es criptografía sino **la fuente de verdad de ese binding**.
+2. **Registro propio de QRs autorizados, verificado en canal propio (modelo de la tesis Identity Binding): el argumento de incentivos NO aplica.** QRSafe no necesita que ninguna billetera verifique nada — su app consulta su propio registro. Es desplegable hoy, sin mandato regulatorio ni cooperación de terceros, porque la verificación ocurre fuera del flujo de pago, exactamente donde nadie actúa hoy. La unidad de confianza no es el QR aislado sino `comercio verificado + QR autorizado + destino esperado`; lo que el usuario compra no es criptografía sino **la fuente de verdad de ese binding**.
 3. Brasil, con el mismo problema y más escala, eligió reversibilidad + verificación de nombre *dentro* del flujo (BCB puede imponerlo a los bancos); el registro propio opera *fuera* del flujo — son mitigaciones complementarias, no excluyentes.
 4. **Aporte residual de la criptografía en el modelo de la tesis**: fingerprint/hash determinístico y comparable del payload, firma del registro por QRSafe (integridad del propio registro frente a manipulación interna) y eventual verificación offline estilo EU DCC. Es una capa de ingeniería del producto, no el diferencial: el diferencial es la existencia y confiabilidad de la fuente de verdad del binding.
 
@@ -306,53 +253,40 @@ En Argentina **ese escenario no se da**: el BCRA regula el esquema y la IEP ya i
 
 > Fuente de verdad de la propuesta B2B: `docs/research/tesis-identity-binding-b2b.md` (Tesis de Identity Binding). Estas recomendaciones se subordinan a ella.
 
-1. **Foco de producto**: QR estático físico sin supervisión (estaciones, gastronomía, parking, kioscos). Los QR dinámicos reducen materialmente la exposición al vector de sustitución física que QRSafe estudia; existe evidencia secundaria de implementaciones específicas que reportan fraude muy bajo o nulo, pero eso no permite tratarlos como seguros en forma general.
-2. **Núcleo del producto — Identity Binding (según la tesis)**: registro verificable `contexto físico / identidad esperada ↔ QR autorizado ↔ destino de pago esperado`, comparado en canal propio antes del pago. La pregunta del producto es **"¿este QR observado pertenece al comercio y contexto en el que intento pagar?"**, no "¿este QR es seguro?" (validity ≠ authenticity). El contraste semántico del receptor (`collector.name` esperado vs. resuelto) es una posible evolución dentro del flujo de pago: requiere adhesión de billeteras/adquirentes y hereda la debilidad razón social vs. nombre de fantasía (§5.6).
-3. **Arquitectura** (sin blockchain, sin PSP, sin cámaras): `Merchant Identity verificada → Contexto de pago → Authorized QR + Expected Payment Destination → Binding → Observed QR → Verification`. La verificación debe distinguir `VERIFIED`, `MISMATCH`, `UNKNOWN`, `EXPIRED/STALE` y `REVOKED`; no puede derivar el contexto esperado solo del QR observado. La criptografía es una capa de ingeniería (fingerprint/hash determinístico y firma del propio registro), no el diferencial de producto. La firma Ed25519 en Unreserved Templates (80–99) queda documentada como opción futura para verificadores dentro del flujo de pago.
-4. **Principio de comunicación y responsabilidad**: la app afirma *pertenencia* ("autorizado para Comercio/Contexto X") o *no-pertenencia* ("no registrado como autorizado para Comercio/Contexto X") — nunca que un QR o una cuenta son "seguros" ni que son una estafa. Limitar las respuestas a pertenencia/no-pertenencia reduce la superficie de claims que QRSafe realiza; el efecto concreto sobre responsabilidad legal debe validarse con asesoramiento jurídico (§4.2).
-5. **Go-to-market**: vía banderas/asociaciones (AOYPF, FECRA) y adquirentes T3.0, sin ser PSP en la primera etapa (complejidad regulatoria + tope de comisión 0,8%). Modelo B2B2C con el comercio como cliente pagador (incentivo directo: pierde la venta y la confianza). Dentro del research realizado, el espacio aparece desatendido por los players internacionales relevados; esa conclusión debe revisarse periódicamente.
+1. **Foco de producto**: QR estático físico sin supervisión (estaciones, gastronomía, parking, kioscos). El QR dinámico ya es seguro (Pronto Pago reporta 0% de fraude).
+2. **Núcleo del producto — identity binding (per la tesis)**: registro verificable `identidad del comercio ↔ QR autorizado ↔ destino de pago`, verificado en canal propio antes del pago. La pregunta del producto es **"¿es este uno de los QRs autorizados por el comercio al que intento pagar?"**, no "¿es este QR seguro?" (validity ≠ authenticity). El contraste semántico del receptor (`collector.name` esperado vs. resuelto) pasa a ser **evolución de largo plazo dentro del flujo de pago** — requiere adhesión de billeteras/adquirentes (resolve enriquecido) y hereda la debilidad razón social vs. nombre de fantasía (§5.6); el binding por fingerprint es la mitigación desplegable hoy, sin cooperación de nadie.
+3. **Arquitectura** (sin blockchain, sin PSP, sin cámaras): `comercio verificado → registra QR → QRSafe crea binding (fingerprint/hash + metadatos del destino) → consumidor verifica → verified / mismatch`. La criptografía es capa de ingeniería (hashing determinístico del payload, firma del propio registro), no diferencial de producto. La firma Ed25519 en Unreserved Templates (80–99) queda documentada como opción futura para cuando existan verificadores en el flujo de pago.
+4. **Principio de comunicación y responsabilidad**: la app afirma *pertenencia* ("autorizado por Comercio X") o *no-pertenencia* ("no registrado por Comercio X") — nunca que un QR o una cuenta son "seguros". No acusa fraude ni valida receptores: constata la no-pertenencia contra lo que el comercio declaró como propio. Este framing mitiga el riesgo legal de "aprobar" un QR que luego resulte fraudulento (§4.2).
+5. **Go-to-market**: vía banderas/asociaciones (AOYPF, FECRA) y adquirentes T3.0, sin ser PSP en la primera etapa (complejidad regulatoria + tope de comisión 0,8%). Modelo B2B2C con el comercio como cliente pagador (incentivo directo: pierde la venta y la confianza); ningún incumbente internacional (todos B2C URL-checkers en contracción) ocupará este terreno.
 6. **Blockchain**: descartar como núcleo; mantener como anclaje opcional de hashes si aporta a la narrativa comercial, con comunicación honesta (la detección ocurre off-chain).
 7. **Mundo cripto**: descartar como extensión de producto. Las wallets ya tienen mecanismos propios (EIP-55/681, simulación pre-firma, blocklists) con incumbentes consolidados; el fraude QR cripto dominante es remoto, no presencial.
-8. **Generar el dato**: no hay estadística pública nacional desagregada de fraude por QR sustituido — construirla (con comercio anónimizado) puede ser una ventaja competitiva y de posicionamiento. El registro de verificaciones de QRSafe generaría ese dato como subproducto del modelo.
+8. **Generar el dato**: no existe estadística nacional de fraude por QR sustituido — construirla (con comercio anónimizado) es una ventaja competitiva y de posicionamiento. El registro de verificaciones de QRSafe genera ese dato como subproducto del modelo.
 
 ---
 
-## 7. Hipótesis abiertas y preguntas para Domain Modeling
+## 7. Preguntas abiertas (a debatir / próximos research)
 
-Estas hipótesis no son hallazgos ni decisiones. Domain Modeling debe preservar su estado abierto y usarlo para destruir ambigüedades de términos, relaciones y estados; discovery posterior debe aportar evidencia antes de convertirlas en decisiones.
+Surgen de la conciliación con la tesis; ninguna bloquea la decisión de producto, pero todas deben resolverse antes o durante el diseño del MVP.
 
-### 7.1 HYP-01 — Anchor físico / contexto esperado
-> Podemos identificar con suficiente confianza qué comercio y punto de pago espera usar la persona, sin introducir una fricción incompatible con el producto.
+### 7.1 Anchor de identidad física — ¿cómo sabe la app qué comercio hay enfrente?
+El binding verifica "¿este QR fue autorizado por el comercio X?", pero el verificador necesita resolver X primero. Mecanismos candidatos sin evaluar: búsqueda manual por el usuario (nombre/géolocalización), GPS + radio, foto del local, código propio en la señalética del comercio, o verificación implícita por contexto (el comercio exhibe un identificador QRSafe junto al QR). Es la otra mitad del vínculo `mundo físico → identidad` y no fue investigada en este documento. Decisión de diseño crítica: cuanta más fricción agregue, peor el problema de adopción (§7.5); cuanta menos, más débil el anchor (y más fácil de falsear).
 
-¿El contexto se identifica por búsqueda manual, GPS, foto, identificador físico QRSafe o una combinación? Cuanta más fricción agregue, más difícil será la adopción; cuanta menos, más débil será el anchor y más fácil de falsear. El QR observado no puede proveer por sí solo esa respuesta.
+### 7.2 Estabilidad del fingerprint — ¿qué se hashea y qué pasa cuando el QR cambia?
+- Si el adquirente re-emite el QR estático (cambio de cuenta, re-alta, nuevo esquema), el fingerprint deja de matchear → falso mismatch. ¿Política de re-registro, expiración de bindings, notificación al comercio?
+- ¿Se hashea el string TLV crudo o una forma canónica normalizada (sin campos volátiles)? El string crudo es más simple pero más frágil; la normalización requiere definir qué campos son estables.
+- ¿Se registra también una referencia visual (posición en la cartelería) o solo el payload? El sticker fraud cambia el payload — con el payload alcanza para detectarlo — pero los metadatos de contexto pueden ayudar en disputas.
 
-### 7.2 HYP-02 — KYC comercial / Merchant Identity
-> Podemos verificar la identidad del comercio de forma suficientemente confiable y económica para sostener el binding.
+### 7.3 QRs múltiples legítimos por comercio — modelo de datos del registro
+Un comercio real tiene varios QRs legítimos simultáneos (mesa, box, barra, sucursal, QR de otro adquirente como fallback). El registro es N QRs : 1 identidad. Preguntas: ¿el comercio registra todos?, ¿cómo se presentan al verificador?, ¿el verificador valida contra el comercio o contra el punto físico (mesa 4 de la sucursal Y)? Impacta directamente en §7.1.
 
-Opciones a investigar: CUIT + padrones públicos, documentación comercial, validación contra adquirente, proceso humano, verificación presencial o combinación. Esta no es una decisión secundaria de onboarding: si una Merchant Identity se puede falsificar, el binding puede ser internamente consistente y externamente falso.
+### 7.4 KYC del onboarding comercial — ¿contra qué se verifica la identidad?
+La tesis exige "una identidad verificable" del comercio, pero no define el mecanismo. Opciones: CUIT + padrones públicos (AFIP, ingresos brutos), verificación documental humana, validación vía el adquirente (si el QR matchea un comercio ya onboarded), verificación presencial. Es el eslabón más crítico del binding: si la identidad del comercio se puede falsificar, todo el modelo colapsa (un atacante podría registrar "su" comercio con el nombre de la víctima). No está investigado; candidato a research de seguimiento.
 
-### 7.3 HYP-03 — Adopción del verificador
-> Los usuarios realizarán una verificación antes del pago con frecuencia suficiente para que el comercio perciba protección real.
+### 7.5 Adopción del verificador y arranque en frío de doble mercado
+Sin masa crítica de comercios registrados no hay razón para verificar; sin verificadores no hay valor demostrable para el comercio. Mitigaciones a evaluar: señalética física en el local ("QR verificado por QRSafe" — convierte al comercio en canal de adquisición de verificadores), verificación pasiva, canal WhatsApp (§4.2), incentivos del comercio al pagador. Métrica guía a definir: % de pagos reales precedidos por una verificación.
 
-Sin masa crítica de comercios registrados no hay razón para verificar; sin verificadores no hay valor demostrado para el comercio. Mitigaciones a evaluar: señalética física ("QR verificado por QRSafe"), canal WhatsApp (§4.2), verificación pasiva e incentivos del comercio. Métrica guía: porcentaje de pagos reales precedidos por una verificación.
-
-### 7.4 HYP-04 — Willingness to pay B2B
-> Los comercios perciben riesgo y valor suficientes como para pagar por mantener un registro verificable de sus puntos de cobro.
-
-El modelo B2B2C presupone que el comercio es el cliente pagador por el daño económico y reputacional del fraude. Esa disposición a pagar aún no fue validada y requiere discovery comercial separado.
-
-### 7.5 HYP-05 — Fingerprint estable y ciclo de vida del binding
-> Podemos definir una representación del QR suficientemente estable para identificarlo sin producir falsos `MISMATCH` ante cambios legítimos.
-
-Preguntas: ¿se hashea el TLV crudo o una forma canónica normalizada?, ¿qué sucede si el adquirente re-emite el QR?, ¿cómo se versionan o expiran bindings?, ¿qué metadatos de contexto se guardan para trazabilidad? El ciclo de vida debe soportar `created → active → replaced | revoked | expired`.
-
-### 7.6 HYP-06 — Múltiples puntos de cobro
-> El registro puede mantenerse operacionalmente actualizado en empresas con múltiples sucursales, puntos de pago, adquirentes y QRs legítimos.
-
-El modelo no puede asumir `1 comercio = 1 QR`: debe admitir una Merchant Identity con N ubicaciones, N contextos y N Authorized QRs. Debe resolverse si el binding ocurre a nivel comercio, sucursal, mesa/surtidor/terminal, o una combinación.
-
-### 7.7 Estados de verificación y UX
-`UNKNOWN`, `MISMATCH`, `EXPIRED/STALE` y `REVOKED` tienen semánticas distintas. Un comercio no registrado no es evidencia de sustitución; un `MISMATCH` solo existe si hay Merchant Identity verificada, contexto esperado y bindings vigentes contra los cuales comparar. Debe definirse qué mensaje, acción y evidencia acompaña cada estado, incluyendo reportar el caso sin acusar fraude.
+### 7.6 UX del mismatch y del caso "comercio no registrado"
+Un QR no registrado tiene dos causas muy distintas: (a) el comercio no está en QRSafe (falso negativo inocuo, mayoría de casos al inicio), o (b) el QR fue sustituido (el caso que importa). ¿Cómo se comunica la diferencia sin generar alarmismo ni trivializar el riesgo? ¿Se ofrece al usuario una acción (avisar al comercio, reportar)? El diseño de este flujo determina la credibilidad del producto.
 
 ---
 
@@ -364,6 +298,6 @@ El modelo no puede asumir `1 comercio = 1 QR`: debe admitir una Merchant Identit
 - No se auditó el interior de la app de ninguna billetera; las afirmaciones sobre "qué no ofrecen" se basan en documentación pública y comunicados.
 - Los detalles criptográficos del firmado UPI 2.0 (algoritmo exacto, formato de clave) no son públicos: NPCI restringe sus especificaciones a bancos miembro; se documentó el mecanismo a partir de fuentes oficiales de divulgación.
 - El research de players internacionales se basa en documentación pública de los productos (sitios oficiales, stores); el estado de disponibilidad en stores puede variar por región y fecha.
-- Cambios de alcance documentados: el monitoreo por cámaras (v1) fue excluido del MVP por decisión de producto (complejidad de providers); el contenido de la v1 sobre videoanalítica fue retirado de este documento. En v3, la tesis de Identity Binding (`tesis-identity-binding-b2b.md`) pasó a ser la fuente de verdad de la propuesta B2B. En v4, `conciliacion-domain-modeling.md` normalizó el modelo con contexto esperado, estados de verificación y ciclo de vida del binding; este research mantiene separados hechos, conclusiones, decisiones e hipótesis.
-- Las hipótesis de §7 no fueron investigadas contra fuentes y deben resolverse con experimentos de producto, asesoramiento jurídico o research de seguimiento; no constituyen especificación técnica cerrada.
+- Cambios de alcance documentados: el monitoreo por cámaras (v1) fue excluido del MVP por decisión de producto (complejidad de providers); el contenido de la v1 sobre videoanalítica fue retirado de este documento. En v3, la tesis de Identity Binding (`tesis-identity-binding-b2b.md`, versionada en este directorio) pasó a ser la fuente de verdad de la propuesta B2B: este documento se subordina a ella y las discrepancias detectadas fueron corregidas (principalmente el veredicto de §5.5, que mezclaba firma-verificada-por-terceros con registro-propio, y la recomendación de núcleo de §6).
+- Las preguntas de §7 son preguntas de diseño/abiertas, no hallazgos: no fueron investigadas contra fuentes y deben resolverse con experimentos de producto o research de seguimiento.
 - Las fuentes raw de los agentes (`research-qrsafe-mercado.md`, `research-qrsafe-blockchain.md`, `research-qrsafe-players.md` y `research-qrsafe-cripto.md`) se guardaron en un directorio temporal fuera del repo y **ya no son recuperables**: el perfil de usuario donde vivían no existe en la máquina actual. El respaldo consultable de este informe son los enlaces citados en línea; **las afirmaciones que no lleven enlace no tienen material de respaldo adicional al que recurrir** — es el caso del dato de quishing "+150% T1 2026" mencionado más arriba en esta misma sección.
