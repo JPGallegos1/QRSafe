@@ -1,0 +1,38 @@
+{
+  "name": "@qrsafe/verification",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Motor de verificación de QR por pertenencia. Dominio puro, sin canal.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "qrsafe-verify": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false",
+    "lint": "oxlint src",
+    "test": "tsx test/run.ts",
+    "verify": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "jimp": "0.22.12",
+    "jsqr": "1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "oxlint": "^1.75.0",
+    "tsx": "^4.23.12",
+    "typescript": "~6.0.2"
+  }
+}

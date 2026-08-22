@@ -1,36 +1,59 @@
-import * as emv from './emv.js';
-import * as registry from './registry.js';
-
 /**
- * Turns a decoded payload into one of four verdicts.
+ * Turns a decoded payload into one of five verdicts.
  *
- * The rules that must not be relaxed:
+ * The rules that must not be relaxed — each one is pinned by a test:
  *
- *  - NO_AUTORIZADO is only ever emitted inside a CLOSED domain. Outside one,
- *    an unknown identifier means the registry is incomplete, not that the code
- *    is forged.
+ *  - NO_AUTORIZADO is only ever emitted inside a CLOSED domain. Outside one, an
+ *    unknown identifier means the registry is incomplete, not that the code is
+ *    forged.
  *  - FUERA_DE_COBERTURA always states, in words, that it is not a warning.
  *    Softening that sentence into a hedged alert destroys the meaning of
- *    NO_AUTORIZADO, which is the only reason the product is worth anything.
- *  - An intact CRC is never reported as reassuring. CRC-16 detects
- *    transmission errors, not forgery: a well-formed fraudulent code passes it
- *    exactly like the legitimate one.
+ *    NO_AUTORIZADO, which is the only reason this product is worth anything.
+ *  - An intact CRC is never reported as reassuring. A well-formed fraudulent
+ *    code passes it exactly like the legitimate one.
+ *  - ILEGIBLE says nothing about the code. Failing to read a photo is a fact
+ *    about the photo.
+ *
+ * This module knows nothing about users, channels or subscriptions. The gate
+ * that decides WHETHER a query is served lives in the app in front of it; this
+ * decides WHAT is answered. Mixing them would make a subscription problem read
+ * as a judgement about the QR.
  */
 
-const STATES = {
+import * as emv from './emv.js';
+import * as registry from './registry.js';
+import type { Reading } from './emv.js';
+import type { Lookup } from './registry.js';
+
+export const STATES = {
   VERIFICADO: 'VERIFICADO',
   NO_AUTORIZADO: 'NO_AUTORIZADO',
   FUERA_DE_COBERTURA: 'FUERA_DE_COBERTURA',
   ANOMALIA: 'ANOMALIA',
   ILEGIBLE: 'ILEGIBLE',
-};
+} as const;
 
-/** Public-sector or well-known names that should not appear on a private account. */
+export type State = (typeof STATES)[keyof typeof STATES];
+
+export interface Note {
+  level: 'alto' | 'medio';
+  text: string;
+}
+
+export interface Verdict {
+  state: State;
+  message: string;
+  notes: Note[];
+  reading: Reading | null;
+  registry: Lookup | null;
+}
+
+/** Names that suggest a public body or a known brand. Field 59 is free text. */
 const CLAIMED_PUBLIC = /\b(municipalidad|muni|gobierno|senasa|afip|arca|rentas|banco)\b/i;
 
 /** Observations that hold with an empty registry. */
-function structuralNotes(reading) {
-  const notes = [];
+export function structuralNotes(reading: Reading): Note[] {
+  const notes: Note[] = [];
   if (reading.kind !== 'emv') return notes;
 
   if (!reading.crc.intact) {
@@ -46,11 +69,8 @@ function structuralNotes(reading) {
   }
 
   const name = reading.declaredName;
-  if (!name || /^undefined$/i.test(name)) {
-    notes.push({
-      level: 'medio',
-      text: 'El código no declara un nombre de comercio.',
-    });
+  if (name === null || /^undefined$/i.test(name)) {
+    notes.push({ level: 'medio', text: 'El código no declara un nombre de comercio.' });
   } else if (CLAIMED_PUBLIC.test(name)) {
     notes.push({
       level: 'medio',
@@ -61,13 +81,13 @@ function structuralNotes(reading) {
     });
   }
 
-  if (reading.country && reading.country !== 'AR') {
+  if (reading.country !== null && reading.country !== 'AR') {
     notes.push({
       level: 'alto',
       text: 'El código declara el país ' + reading.country + ', no Argentina.',
     });
   }
-  if (reading.currency && reading.currency !== '032') {
+  if (reading.currency !== null && reading.currency !== '032') {
     notes.push({
       level: 'alto',
       text: 'El código declara una moneda distinta del peso argentino.',
@@ -76,12 +96,14 @@ function structuralNotes(reading) {
   return notes;
 }
 
-function verify(payload) {
-  if (!payload) {
+export function verify(payload: string | null): Verdict {
+  if (payload === null || payload.length === 0) {
     return {
       state: STATES.ILEGIBLE,
       message: 'No pude leer un código en la imagen. Probá con más luz, de frente y más cerca.',
       notes: [],
+      reading: null,
+      registry: null,
     };
   }
 
@@ -92,7 +114,8 @@ function verify(payload) {
       message:
         'Leí el código pero no tiene formato de pago ni de enlace conocido, así que no puedo analizarlo. Esto no es una advertencia.',
       notes: [],
-      raw: payload,
+      reading: null,
+      registry: null,
     };
   }
 
@@ -100,33 +123,34 @@ function verify(payload) {
   const hit = registry.lookup(reading);
   const blocking = notes.filter((n) => n.level === 'alto');
 
-  if (blocking.length) {
+  const first = blocking[0];
+  if (first !== undefined) {
     return {
       state: STATES.ANOMALIA,
-      message: 'Este código tiene algo raro: ' + blocking[0].text,
+      message: 'Este código tiene algo raro: ' + first.text,
       notes,
       reading,
       registry: hit,
     };
   }
 
-  if (hit.domain && hit.enrolled) {
-    const who = hit.issuer || hit.domain.label;
+  if (hit.domain !== null && hit.enrolled) {
     return {
       state: STATES.VERIFICADO,
-      message: 'QR verificado. Este código está autorizado por ' + who + '.',
+      message: 'QR verificado. Este código está autorizado por ' + (hit.issuer ?? hit.domain.label) + '.',
       notes,
       reading,
       registry: hit,
     };
   }
 
-  if (hit.domain && hit.domain.closed) {
-    const who = hit.issuer || hit.domain.label;
+  if (hit.domain !== null && hit.domain.closed) {
     return {
       state: STATES.NO_AUTORIZADO,
       message:
-        'Advertencia. Este QR no está registrado como un medio de cobro autorizado por ' + who + '.',
+        'Advertencia. Este QR no está registrado como un medio de cobro autorizado por ' +
+        (hit.issuer ?? hit.domain.label) +
+        '.',
       notes,
       reading,
       registry: hit,
@@ -143,5 +167,3 @@ function verify(payload) {
     registry: hit,
   };
 }
-
-export { verify, STATES, structuralNotes };
