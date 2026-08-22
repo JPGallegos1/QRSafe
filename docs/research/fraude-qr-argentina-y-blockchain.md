@@ -1,6 +1,6 @@
 # Research: Fraude QR en Argentina, players internacionales, criptografía y blockchain — QRSafe
 
-> Fecha: 2026-08-22 (v3: conciliación con la tesis de Identity Binding — `tesis-identity-binding-b2b.md`, source of truth de la propuesta B2B) · Alcance: Argentina + paisaje internacional · Método: investigación contra fuentes primarias (BCRA/CIMPRA, MPF/UFECI, EMVCo, W3C, NIST, BCB, NPCI, FTC, papers académicos) por agentes paralelos, sintetizada en este documento. Las afirmaciones que solo aparecen en prensa están marcadas como *fuente secundaria*.
+> Fecha: 2026-08-22 (v3: conciliación B2B de Identity Binding) · Alcance: Argentina + paisaje internacional · Método: investigación contra fuentes primarias (BCRA/CIMPRA, MPF/UFECI, EMVCo, W3C, NIST, BCB, NPCI, FTC, papers académicos) por agentes paralelos, sintetizada en este documento. Las afirmaciones que solo aparecen en prensa están marcadas como *fuente secundaria*.
 
 ---
 
@@ -251,7 +251,7 @@ En Argentina **ese escenario no se da**: el BCRA regula el esquema y la IEP ya i
 
 ## 6. Recomendaciones para QRSafe
 
-> Fuente de verdad de la propuesta B2B: `docs/research/tesis-identity-binding-b2b.md` (Tesis de Identity Binding). Estas recomendaciones se subordinan a ella.
+> Estas recomendaciones reflejan la conciliación B2B de Identity Binding vigente al cierre de la v3.
 
 1. **Foco de producto**: QR estático físico sin supervisión (estaciones, gastronomía, parking, kioscos). El QR dinámico ya es seguro (Pronto Pago reporta 0% de fraude).
 2. **Núcleo del producto — identity binding (per la tesis)**: registro verificable `identidad del comercio ↔ QR autorizado ↔ destino de pago`, verificado en canal propio antes del pago. La pregunta del producto es **"¿es este uno de los QRs autorizados por el comercio al que intento pagar?"**, no "¿es este QR seguro?" (validity ≠ authenticity). El contraste semántico del receptor (`collector.name` esperado vs. resuelto) pasa a ser **evolución de largo plazo dentro del flujo de pago** — requiere adhesión de billeteras/adquirentes (resolve enriquecido) y hereda la debilidad razón social vs. nombre de fantasía (§5.6); el binding por fingerprint es la mitigación desplegable hoy, sin cooperación de nadie.
@@ -298,6 +298,6 @@ Un QR no registrado tiene dos causas muy distintas: (a) el comercio no está en 
 - No se auditó el interior de la app de ninguna billetera; las afirmaciones sobre "qué no ofrecen" se basan en documentación pública y comunicados.
 - Los detalles criptográficos del firmado UPI 2.0 (algoritmo exacto, formato de clave) no son públicos: NPCI restringe sus especificaciones a bancos miembro; se documentó el mecanismo a partir de fuentes oficiales de divulgación.
 - El research de players internacionales se basa en documentación pública de los productos (sitios oficiales, stores); el estado de disponibilidad en stores puede variar por región y fecha.
-- Cambios de alcance documentados: el monitoreo por cámaras (v1) fue excluido del MVP por decisión de producto (complejidad de providers); el contenido de la v1 sobre videoanalítica fue retirado de este documento. En v3, la tesis de Identity Binding (`tesis-identity-binding-b2b.md`, versionada en este directorio) pasó a ser la fuente de verdad de la propuesta B2B: este documento se subordina a ella y las discrepancias detectadas fueron corregidas (principalmente el veredicto de §5.5, que mezclaba firma-verificada-por-terceros con registro-propio, y la recomendación de núcleo de §6).
+- Cambios de alcance documentados: el monitoreo por cámaras (v1) fue excluido del MVP por decisión de producto (complejidad de providers); el contenido de la v1 sobre videoanalítica fue retirado de este documento. En v3, la conciliación B2B de Identity Binding corrigió las discrepancias detectadas, principalmente el veredicto de §5.5 (firma verificada por terceros vs. registro propio) y la recomendación de núcleo de §6.
 - Las preguntas de §7 son preguntas de diseño/abiertas, no hallazgos: no fueron investigadas contra fuentes y deben resolverse con experimentos de producto o research de seguimiento.
 - Las fuentes raw de los agentes (`research-qrsafe-mercado.md`, `research-qrsafe-blockchain.md`, `research-qrsafe-players.md` y `research-qrsafe-cripto.md`) se guardaron en un directorio temporal fuera del repo y **ya no son recuperables**: el perfil de usuario donde vivían no existe en la máquina actual. El respaldo consultable de este informe son los enlaces citados en línea; **las afirmaciones que no lleven enlace no tienen material de respaldo adicional al que recurrir** — es el caso del dato de quishing "+150% T1 2026" mencionado más arriba en esta misma sección.
