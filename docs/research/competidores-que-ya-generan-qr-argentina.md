@@ -14,7 +14,7 @@ Este informe complementa a [`fraude-qr-argentina-y-blockchain.md`](./fraude-qr-a
 
 3. **Mercado Pago no es sólo un rail: es una fábrica de QR físicos.** Su Kit QR Oficial envía "1 código QR autoadhesivo" al comercio — "no necesitás imprimir tu QR". Controla generación, impresión, distribución y backend. Es el único actor del mapa que puede cerrar la categoría entera de un release a otro.
 
-4. **El corte "¿ya genera su QR?" ordena el mercado mejor que el corte "¿es competidor?".** Quien ya emite demostró que el caso de uso le importa y que tiene el flujo montado. La diferencia entre competidor y cliente no está en si emite, sino en **si controla el ciclo de vida completo y tiene con qué firmarlo**.
+4. **Cuenta DNI Comercios también emite**, con QR estático imprimible y sin verificación. **El corte "¿ya genera su QR?" ordena el mercado mejor que el corte "¿es competidor?".** Quien ya emite demostró que el caso de uso le importa y que tiene el flujo montado. La diferencia entre competidor y cliente no está en si emite, sino en **si controla el ciclo de vida completo y tiene con qué firmarlo**.
 
 5. **Hay una asimetría regulatoria explotable.** SENASA exige que el QR apunte a un dominio del Estado. El Marcado de Conformidad (Res. 237/2024 + 428/2025) permite que el QR apunte al sitio del propio fabricante, **sin exigir ningún mecanismo de autenticidad** — confirmado leyendo la Res. 26/2025. Es el argumento normativo más fuerte encontrado.
 
@@ -56,16 +56,22 @@ Controla las cuatro etapas: genera, imprime, distribuye y opera el backend. Suma
 
 > **HIPÓTESIS (no hecho documentado)**: la asimetría de incentivos explica esa ausencia — los rails ganan por volumen transaccional y el costo de la sustitución recae en comercio y pagador. No se encontró documento que confirme la motivación.
 
-### 2.2 Los que NO generan QR físico: Cuenta DNI y MODO
+### 2.2 Cuenta DNI Comercios — emite QR propio, estático e imprimible
 
-Aunque el encuadre inicial los ubicaba como competidores, la evidencia primaria dice otra cosa: **consumen el QR del comercio, no lo emiten.**
+**Corrección respecto de la primera versión de este informe**: se había concluido que Cuenta DNI no emitía QR, a partir del FAQ de **individuos**. Es incorrecto — el producto de comercios sí emite.
 
-- **Cuenta DNI (Banco Provincia)**: "Podés utilizar Cuenta DNI en cualquier comercio que tenga QR". El FAQ oficial no menciona verificación del destinatario ni fraude por QR; sólo un teléfono para denunciar gastos desconocidos. [PRIMARIA] https://www.bancoprovincia.com.ar/cuentadni/contenidos/cdniIndividuosFaq
-- **MODO**: su guía "Cómo pagar con QR paso a paso" recomienda verificar **el monto**, no el destinatario, y no aborda adulteración del QR. [PRIMARIA] https://www.modo.com.ar/blog/como-pagar-con-qr-en-argentina-paso-a-paso
+- **El QR es propio del comercio**: "El QR es un código único vinculado a Cuenta DNI Comercios que te permite recibir pagos". [PRIMARIA] https://www.bancoprovincia.com.ar/cuentadni/contenidos/cdniComerciosFaq/
+- **Hay QR estático, sin vencimiento, pensado para exhibir**: "Este QR no tiene vencimiento y te va a servir para cobrar todas las veces que quieras", con la indicación **"Imprimilo para ponerlo visible donde quieras"**. [PRIMARIA, misma fuente]
+- **Y QR dinámico con monto**: "Ingresá el importe y presioná 'Generar QR', el código tendrá una validez de 10 minutos". [PRIMARIA, misma fuente]
+- **Verificación de integridad hoy**: **ninguna**. La documentación del producto no menciona adulteración, sustitución del código impreso ni validación de autenticidad. [PRIMARIA, misma fuente]
 
-**Consecuencia práctica**: no compiten en emisión. Compiten — potencialmente — en el lado del escaneo, que es otro producto. Para QRSafe son canal antes que rival.
+**Diferencia con Mercado Pago**: Mercado Pago fabrica e **imprime** el sticker y se lo envía al comercio; Cuenta DNI genera el código y le dice al comercio que lo imprima. Emisión en los dos casos; control del soporte físico sólo en el primero.
 
-### 2.3 Municipios que ya emiten QR de calle
+### 2.3 MODO — no emite
+
+Su guía "Cómo pagar con QR paso a paso" recomienda verificar **el monto**, no el destinatario, y no aborda adulteración del QR. Consume el QR del comercio, no lo genera. Para QRSafe es canal potencial del lado del escaneo, no rival de emisión.
+
+### 2.4 Municipios que ya emiten QR de calle
 
 | Desplegador | Qué emite | Proveedor (Capa 2) | Verif. | Fuente |
 |---|---|---|---|---|
@@ -76,7 +82,7 @@ Aunque el encuadre inicial los ubicaba como competidores, la evidencia primaria 
 
 > **Sobre Córdoba** — la fuente no declara si los QR son estáticos o dinámicos; al ir impresos en cartelería fija son estáticos en el sentido relevante (**INFERENCIA**, no dato de la fuente). Están en poste, en la calle, sin supervisión, 24/7, replicados ~600 veces con identidad visual uniforme. Un atacante con una plancha de impresión convincente escala a toda la ciudad. Es el mismo municipio que ya advirtió públicamente por multas truchas con QR.
 
-### 2.4 Organismos de recaudación — QR dinámico en boleta
+### 2.5 Organismos de recaudación — QR dinámico en boleta
 
 | Desplegador | Qué emite | Tipo | Verif. | Riesgo |
 |---|---|---|---|---|
@@ -85,7 +91,7 @@ Aunque el encuadre inicial los ubicaba como competidores, la evidencia primaria 
 
 Emiten, sí, pero el QR dinámico reduce mucho la superficie de ataque. **Prioridad comercial baja**, aunque la capacidad técnica esté.
 
-### 2.5 Fuera de alcance: transporte público
+### 2.6 Fuera de alcance: transporte público
 
 El QR de colectivo y subte **lo presenta el pasajero** contra el lector del validador. No hay QR físico sustituible, y el esquema VQR ya va firmado con Ed25519 (ver informe previo). **Cero superficie de ataque, cero mercado.** Descartar.
 
@@ -108,7 +114,11 @@ Es el hallazgo central del Escenario B.
 
 ### 3.2 Fabricantes bajo Marcado de Conformidad — emisión obligatoria, cero autenticidad
 
-Las Res. 237/2024, Disp. 1/2024 y Res. 428/2025 obligan a fabricantes e importadores de productos con certificación obligatoria a exhibir un sello de Marcado de Conformidad **con QR**. Cada fabricante aloja la documentación **en su propio sitio**, y la Res. 26/2025 **no exige ningún mecanismo de autenticidad**. [PRIMARIA, InfoLEG]
+La **Res. 237/2024** aprueba el Marco General de Evaluación de la Conformidad y establece que el Marcado de Conformidad "consiste en un sello de conformidad y un código de respuesta rápida (QR) mediante el cual se debe acceder a los documentos" —Declaración Jurada de Conformidad y Certificación de Producto—, colocado en lugar visible del producto o de su envase primario "que permita a usuarios y consumidores la lectura del QR". [PRIMARIA] https://www.boletinoficial.gob.ar/detalleAviso/primera/313097/20240830 · https://www.argentina.gob.ar/normativa/nacional/resoluci%C3%B3n-237-2024-403547/texto
+
+La **Res. 26/2025** prorrogó la exigibilidad hasta el 1° de octubre de 2025. [PRIMARIA] https://www.boletinoficial.gob.ar/detalleAviso/primera/321824/20250225
+
+> **VACÍO DECLARADO, no hecho verificado**: en el texto publicado de ambas normas **no se encontró** ningún requisito de mecanismo de autenticidad, firma digital o verificación de integridad del QR, ni una definición de dónde debe alojarse la documentación. Pero los anexos técnicos (p. ej. "Anexo V — IF-2025-05199516-APN-DNRT#MEC") **no son legibles en la versión web del Boletín Oficial y no se pudieron consultar**. Por lo tanto "la norma no exige autenticidad" es **ausencia de evidencia en el texto accesible**, no una verificación positiva. Antes de usar este punto como argumento comercial hay que leer los anexos.
 
 Es un universo de emisores creciendo **por mandato regulatorio**, donde el QR apunta a un dominio privado sin ancla de confianza. Un tercero que falsifique el QR lleva al consumidor a una declaración de conformidad apócrifa: es riesgo de responsabilidad regulatoria, no sólo de fraude.
 
@@ -129,6 +139,7 @@ Ordenada por lo único que importa acá: **si el emisor puede construir verifica
 | Emisor | Escenario | Qué emite | ¿Ciclo completo? | Capacidad | Verif. hoy |
 |---|---|---|---|---|---|
 | **Mercado Pago** | Pago | Kit QR físico autoadhesivo | **Sí** (genera, imprime, distribuye, opera backend) | **Máxima** | No |
+| **Cuenta DNI Comercios** | Pago | QR propio, estático sin vencimiento e imprimible, más dinámico con monto | **Sí** (genera y opera backend; **no** imprime ni distribuye el soporte) | Alta (Banco Provincia) | No |
 | **SENASA** | Producto | QR para +150.000 productos + etiqueta obligatoria | **Sí** (genera y ancla en dominio propio) | Alta | **Sí, ingenua** |
 | **GCBA (recaudación)** | Pago | QR dinámico en boleta | Sí | Alta | No |
 | **API Santa Fe** | Pago | QR dinámico en boleta | Sí | Media | No |
@@ -156,6 +167,7 @@ Ordenada por lo único que importa acá: **si el emisor puede construir verifica
 | Actor | Por qué | Confianza |
 |---|---|---|
 | **Mercado Pago** | Fabrica e imprime el QR físico, opera el rail, tiene Central de Seguridad. Ciclo completo más capacidad máxima. Hoy sin incentivo, pero **es quien puede cerrar la categoría**. | Alta (capacidad) / Baja (incentivo actual) |
+| **Cuenta DNI Comercios (Banco Provincia)** | Genera QR propio, estático e imprimible, y opera el backend. No controla el soporte impreso —lo imprime el comercio—, pero **el código y el destino son suyos**. Banca pública provincial con capacidad técnica alta. | Alta |
 | **SENASA** | **Ya construyó verificación** y la ofrece gratis a 150.000 productos. Es un organismo del Estado: no compra, provee. En etiquetado de producto registrado **ya ocupa el lugar**. Que su mecanismo sea débil no lo hace menos competidor: lo hace un competidor gratuito y con autoridad institucional. | Alta |
 | **GCBA (recaudación)** | Emite in-house con capacidad alta. Riesgo bajo por ser QR dinámico, pero si decide extender a cartelería, lo hace solo. | Media |
 | **Municipalidad de Gualeguaychú** | La Ord. 12611/2022 asigna el desarrollo y mantenimiento de los QR a su Dirección de Informática. **No compra: hace.** | Media |
@@ -174,7 +186,7 @@ Ordenada por lo único que importa acá: **si el emisor puede construir verifica
 
 ## 6. Los que todavía no emiten — el riesgo de mediano plazo
 
-Ninguno expone QR hoy, pero todos tienen el mandato y el horizonte para hacerlo:
+Ninguno expone QR hoy. Lo documentado es su **horizonte de concesión**, no un mandato de desplegar QR:
 
 | Actor | Situación | Por qué importa |
 |---|---|---|
@@ -183,7 +195,9 @@ Ninguno expone QR hoy, pero todos tienen el mandato y el horizonte para hacerlo:
 | **Sonda Argentina** | Compitiendo por Rosario | Integradora regional con más músculo corporativo. |
 | **SEM – CeSPI (UNLP)** | ~60 municipios; **no documentado** que expongan QR de calle | Unidad universitaria de I+D: capacidad **alta y barata**. Si concluye que el QR necesita firma, la distribuye gratis a toda su red. |
 
-> **La ventana se cierra.** Las concesiones se firman por 6 a 10 años (Paraná 6+, Rosario 7+3). Rosario está **hoy** en licitación y **hoy** tiene un proyecto de QR en el Concejo. Es la intersección exacta donde un requisito de verificación puede entrar **al pliego**, antes de que exista el despliegue. El punto de entrada al mundo municipal no es el municipio: es el pliego.
+> **HIPÓTESIS, no hecho**: que estos concesionarios vayan a desplegar QR. **Los códigos QR no aparecen mencionados en el material oficial publicado de las licitaciones de Rosario (Lic. 15/2026) ni de Paraná (Lic. 44/2026)**, y no se accedió al texto completo de ninguno de los dos pliegos (ver Limitaciones). Un mandato para operar estacionamiento medido **no** establece un mandato para desplegar QR.
+>
+> Lo que sí es hecho: las concesiones se firman por 6 a 10 años (Paraná 6+, Rosario 7+3), y Rosario tiene hoy un proyecto de QR para estacionamiento medido en su Concejo. **Si** el QR llega a esos sistemas, el punto de entrada es el pliego y no el municipio, porque después la ventana queda cerrada por casi una década. La recomendación de mirar el pliego se sostiene sobre el horizonte de la concesión, no sobre un despliegue de QR confirmado.
 
 ---
 
@@ -199,7 +213,7 @@ Ninguno expone QR hoy, pero todos tienen el mandato y el horizonte para hacerlo:
 
 5. **En Escenario B el vacío competitivo es más limpio que en pago — pero ojo.** No se encontró proveedor argentino vivo de guías digitales para museos ni de etiquetas con verificación digital. Vacío puede significar oportunidad **o** que no hay mercado. En museos el daño es reputacional y el ticket chico: urgencia baja. En etiquetado de producto el daño es económico y regulatorio: ahí sí hay presupuesto.
 
-6. **Cuenta DNI y MODO no son competidores de emisión.** Consumen QR ajeno. Tratarlos como rivales sería un error de encuadre; son canal potencial del lado del escaneo.
+6. **Cuenta DNI sí es competidor de emisión; MODO no.** Cuenta DNI Comercios genera QR propio, estático e imprimible, sin verificación de integridad — mismo perfil de exposición que el Kit de Mercado Pago. MODO, en cambio, consume el QR del comercio y es canal potencial del lado del escaneo.
 
 ---
 
