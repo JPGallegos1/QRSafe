@@ -1,2 +1,17 @@
 # Material de referencia con derechos de terceros: ver docs/research/sources.md
 /images/
+
+# Dependencies and build output
+node_modules/
+.turbo/
+dist/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+*.local

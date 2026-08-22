@@ -1,0 +1,21 @@
+{
+  "name": "qrsafe",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "npm@11.11.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "check": "turbo check",
+    "dev": "turbo dev",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.11"
+  }
+}
