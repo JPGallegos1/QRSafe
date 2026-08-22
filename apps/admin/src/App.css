@@ -1,0 +1,14 @@
+main {
+  width: min(720px, 100%);
+  padding: 3rem;
+  border: 1px solid #dfe3e1;
+  border-radius: 1rem;
+  background: #ffffff;
+}
+
+.eyebrow {
+  color: #1f6f54;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
