@@ -40,7 +40,7 @@ flowchart LR
 
 ### Sobre el motor
 
-El motor de verificación (`apps/bot`) es agnóstico del canal y **no conoce usuarios ni suscripciones**. Este flujo agrega una capa de habilitación por delante:
+El motor de verificación vive en `apps/bot`, en la rama `feat/motor-verificacion`, **todavía sin mergear a `main`**. Es agnóstico del canal y **no conoce usuarios ni suscripciones**. Este flujo agrega una capa de habilitación por delante:
 
 ```
 mensaje entrante → compuerta (identidad + suscripción) → motor → respuesta
@@ -58,7 +58,7 @@ Que el alta y el cobro estén fuera del chat resuelve la mitad del riesgo identi
 
 El diagrama tiene una sola salida afirmativa: *"puede usar el servicio para identificar QR validados"*. Esa caja no distingue **qué contesta el servicio** una vez que la consulta se atiende.
 
-El motor ya devuelve cinco estados, y la diferencia entre ellos es lo que separa a este producto de un lector de QR común:
+El motor implementado en `feat/motor-verificacion` devuelve cinco estados, y la diferencia entre ellos es lo que separa a este producto de un lector de QR común. Hasta que esa rama entre a `main`, esta tabla describe **la arquitectura acordada, no lo que corre en `main` hoy**:
 
 | Estado | Qué afirma |
 |---|---|
