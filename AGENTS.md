@@ -2,7 +2,7 @@
 
 ## Skill obligatoria
 
-Para cualquier investigacion de mercado, carga la skill `research` antes de empezar. La skill delega la busqueda a un agente en segundo plano y exige contrastar los hallazgos con fuentes primarias.
+Para cualquier investigacion de mercado, carga la skill `research` antes de empezar. Si no esta instalada localmente, obtenla desde [mattpocock/skills: engineering/research](https://github.com/mattpocock/skills/tree/main/skills/engineering/research). La skill delega la busqueda a un agente en segundo plano y exige contrastar los hallazgos con fuentes primarias.
 
 ## Flujo de trabajo
 
