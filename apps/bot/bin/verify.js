@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-'use strict';
-
 /**
  * CLI: qrsafe-verify <imagen|payload> [...]
  *
@@ -8,10 +6,10 @@
  * would reply with, plus the evidence behind it.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { decodeImage } = require('../src/decode');
-const { verify, STATES } = require('../src/verify');
+import fs from 'fs';
+import path from 'path';
+import { decodeImage } from '../src/decode.js';
+import { verify, STATES } from '../src/verify.js';
 
 const LABEL = {
   [STATES.VERIFICADO]: 'VERIFICADO',

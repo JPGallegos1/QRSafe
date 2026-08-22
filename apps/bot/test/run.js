@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Test runner without dependencies.
  *
@@ -10,11 +8,14 @@
  *    contract: it moves with the corpus.
  */
 
-const fs = require('fs');
-const path = require('path');
-const emv = require('../src/emv');
-const { verify, STATES } = require('../src/verify');
-const { decodeImage } = require('../src/decode');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+import * as emv from '../src/emv.js';
+import { verify, STATES } from '../src/verify.js';
+import { decodeImage } from '../src/decode.js';
 
 let passed = 0;
 const failures = [];
@@ -95,7 +96,7 @@ check('regla: CRC roto produce ANOMALIA', tampered.state === STATES.ANOMALIA);
    Se inyecta un dominio de prueba en vez de enrolar comercios reales en el
    registro de producción. Los dos estados fuertes tienen que ser alcanzables
    y tienen que depender exclusivamente del flag `closed`. */
-const { DOMAINS } = require('../src/registry');
+import { DOMAINS } from '../src/registry.js';
 
 function withDomain(closed, authorized, fn) {
   DOMAINS.unshift({
@@ -153,7 +154,7 @@ check(
 
 /* --- corpus --- */
 async function corpus() {
-  const root = path.resolve(__dirname, '..', '..', 'images');
+  const root = path.resolve(HERE, '..', '..', '..', 'images');
   if (!fs.existsSync(root)) {
     console.log('\ncorpus: ../images no está presente (gitignored) — omitido');
     return;
