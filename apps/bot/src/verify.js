@@ -1,7 +1,5 @@
-'use strict';
-
-const emv = require('./emv');
-const registry = require('./registry');
+import * as emv from './emv.js';
+import * as registry from './registry.js';
 
 /**
  * Turns a decoded payload into one of four verdicts.
@@ -146,4 +144,4 @@ function verify(payload) {
   };
 }
 
-module.exports = { verify, STATES, structuralNotes };
+export { verify, STATES, structuralNotes };

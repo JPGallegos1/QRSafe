@@ -1,7 +1,5 @@
-'use strict';
-
-const Jimp = require('jimp');
-const jsQR = require('jsqr');
+import Jimp from 'jimp';
+import jsQR from 'jsqr';
 
 /**
  * Image → QR payload.
@@ -118,4 +116,4 @@ function scanTiles(image) {
   return { payload: null, attempts };
 }
 
-module.exports = { decodeImage, VARIANTS };
+export { decodeImage, VARIANTS };

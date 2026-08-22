@@ -16,5 +16,3 @@ dist/
 Thumbs.db
 *.local
 
-# Dependencias del bot
-bot/node_modules/

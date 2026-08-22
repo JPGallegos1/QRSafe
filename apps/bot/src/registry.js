@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Registry of identity binding, organised in coverage domains.
  *
@@ -94,4 +92,4 @@ function lookup(reading) {
   return { domain, keys, enrolled, issuer: domain.issuer };
 }
 
-module.exports = { DOMAINS, lookup, keyFor, domainOf };
+export { DOMAINS, lookup, keyFor, domainOf };

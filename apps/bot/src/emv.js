@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * EMVCo Merchant Presented Mode payload parsing.
  *
@@ -144,4 +142,4 @@ function read(payload) {
   return parse(payload) || parseURL(payload);
 }
 
-module.exports = { crc16, splitTLV, parse, parseURL, read, FIELD_NAMES };
+export { crc16, splitTLV, parse, parseURL, read, FIELD_NAMES };
