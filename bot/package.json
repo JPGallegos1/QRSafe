@@ -1,0 +1,22 @@
+{
+  "name": "qrsafe-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Motor de verificación de QR por pertenencia. Núcleo sin canal.",
+  "main": "src/verify.js",
+  "bin": {
+    "qrsafe-verify": "bin/verify.js"
+  },
+  "scripts": {
+    "verify": "node bin/verify.js",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "jimp": "0.22.12",
+    "jsqr": "1.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
