@@ -56,7 +56,17 @@ export function structuralNotes(reading: Reading): Note[] {
   const notes: Note[] = [];
   if (reading.kind !== 'emv') return notes;
 
-  if (!reading.crc.intact) {
+  if (!reading.wellFormed) {
+    notes.push({
+      level: 'alto',
+      text: 'La estructura del código no cierra: sobran caracteres después del último campo válido.',
+    });
+  } else if (!reading.crc.present) {
+    notes.push({
+      level: 'alto',
+      text: 'Al código le falta el campo de control obligatorio (63). Sin él no hay nada que verificar.',
+    });
+  } else if (!reading.crc.intact) {
     notes.push({
       level: 'alto',
       text:
@@ -121,6 +131,22 @@ export function verify(payload: string | null): Verdict {
 
   const notes = structuralNotes(reading);
   const hit = registry.lookup(reading);
+
+  // Several payment routes in one code: whichever one this verdict looked at,
+  // the wallet may take another. Verifying one route while a second is present
+  // would vouch for a payment that could leave through the other. Refuse.
+  if (hit.otherRoutes.length > 0) {
+    notes.push({
+      level: 'alto',
+      text:
+        'el código declara más de una vía de cobro (' +
+        [hit.domain !== null ? 'la analizada' : 'sin identificar']
+          .concat(hit.otherRoutes.map((t) => 'campo ' + t))
+          .join(', ') +
+        '). No se puede afirmar por cuál de ellas se cobraría.',
+    });
+  }
+
   const blocking = notes.filter((n) => n.level === 'alto');
 
   const first = blocking[0];

@@ -92,14 +92,14 @@ check('regla: CRC roto produce ANOMALIA', tampered.state === STATES.ANOMALIA);
    Se inyecta un dominio de prueba en vez de enrolar comercios reales en el
    registro de producción. Los dos estados fuertes tienen que ser alcanzables y
    tienen que depender exclusivamente del flag `closed`. */
-function withDomain<T>(closed: boolean, authorized: string[], fn: () => T): T {
+function withDomain<T>(closed: boolean, authorized: [string, string][], fn: () => T): T {
   const fixture: Domain = {
     id: 'fixture',
     label: 'Dominio de prueba',
     issuer: 'Emisor de Prueba',
     closed,
     matches: { schemes: ['com.mercadolibre'], hosts: ['mpago.la'] },
-    authorized: new Set(authorized),
+    authorized: new Map(authorized),
   };
   DOMAINS.unshift(fixture);
   try {
@@ -109,15 +109,20 @@ function withDomain<T>(closed: boolean, authorized: string[], fn: () => T): T {
   }
 }
 
-const enrolled = withDomain(true, ['mpago:11426824'], () => verify(REAL.coto));
+const enrolled = withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(REAL.coto));
 check(
   'registro: identificador enrolado produce VERIFICADO',
   enrolled.state === STATES.VERIFICADO,
   'devolvió ' + enrolled.state
 );
 check(
-  'registro: VERIFICADO nombra al emisor',
-  /autorizado por Emisor de Prueba/.test(enrolled.message),
+  'registro: VERIFICADO nombra al COMERCIO, no al dominio',
+  /autorizado por Coto CICSA/.test(enrolled.message),
+  enrolled.message
+);
+check(
+  'registro: VERIFICADO no nombra al dominio en lugar del comercio',
+  !/Dominio de prueba/.test(enrolled.message),
   enrolled.message
 );
 
@@ -145,6 +150,94 @@ check(
     /\bsegur[oa]\b/i.test(r.message)
   )
 );
+
+/* --- invariante: un dominio cerrado tiene que poder nombrar a alguien ---
+   NO_AUTORIZADO acusa a un emisor por no haber autorizado el código. Un dominio
+   sin emisor único no tiene a quién nombrar, así que no puede estar cerrado.
+   Sin esto, un VERIFICADO o una acusación nombrarían al dominio en lugar del
+   comercio, que es responder otra pregunta. */
+for (const d of DOMAINS) {
+  check(
+    'invariante: el dominio ' + d.id + ' no está cerrado sin emisor',
+    !(d.closed && d.issuer === null),
+    'closed=' + String(d.closed) + ' issuer=' + String(d.issuer)
+  );
+}
+
+const sinEmisor = withDomain(false, [], () => verify(REAL.coto));
+check(
+  'invariante: sin emisor y sin enrolar, el veredicto no acusa',
+  sinEmisor.state === STATES.FUERA_DE_COBERTURA,
+  'devolvió ' + sinEmisor.state
+);
+
+/* --- hallazgos del review de seguridad --- */
+
+/* 1. Un payload SIN el campo 63 obligatorio, con crc16(prefijo) pegado al final,
+      se comparaba consigo mismo y parecía íntegro. */
+const sinCRC = (() => {
+  const cuerpo = REAL.coto.slice(0, REAL.coto.length - 8); // saca "6304XXXX"
+  return cuerpo + emv.crc16(cuerpo);
+})();
+check('estructura: sin campo 63 el CRC no está presente', emv.parse(sinCRC)?.crc.present === false);
+check('estructura: sin campo 63 el CRC NO puede figurar íntegro', emv.parse(sinCRC)?.crc.intact === false);
+check(
+  'estructura: sin campo 63 el veredicto es ANOMALIA, nunca VERIFICADO',
+  withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(sinCRC)).state === STATES.ANOMALIA
+);
+
+/* 2. Dos vías de cobro en un mismo código: una enrolada y otra no. El veredicto
+      no puede avalar el QR entero, porque la billetera podría tomar la otra. */
+const dosRutas = (() => {
+  const tlv = (t: string, v: string) => t + String(v.length).padStart(2, '0') + v;
+  const cuerpo =
+    tlv('00', '01') +
+    tlv('01', '11') +
+    tlv('43', tlv('00', 'com.mercadolibre') + tlv('01', 'https://mpago.la/pos/11426824')) +
+    tlv('26', tlv('00', 'com.otrobanco') + tlv('01', 'CUENTA-DEL-ATACANTE')) +
+    tlv('53', '032') +
+    tlv('58', 'AR') +
+    tlv('59', 'COTO') +
+    tlv('60', 'CABA');
+  const conCRC = cuerpo + '6304';
+  return conCRC + emv.crc16(conCRC);
+})();
+const rutas = emv.parse(dosRutas);
+check('rutas: el payload de dos vías parsea y su CRC es íntegro', rutas?.crc.intact === true);
+const veredictoRutas = withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(dosRutas));
+check(
+  'rutas: con una vía enrolada y otra ajena NO devuelve VERIFICADO',
+  veredictoRutas.state !== STATES.VERIFICADO,
+  'devolvió ' + veredictoRutas.state
+);
+check(
+  'rutas: el veredicto es ANOMALIA y nombra el problema',
+  veredictoRutas.state === STATES.ANOMALIA && /más de una vía de cobro/.test(veredictoRutas.message),
+  veredictoRutas.message
+);
+check(
+  'rutas: la búsqueda en el registro reporta las vías no cubiertas',
+  (veredictoRutas.registry?.otherRoutes.length ?? 0) > 0
+);
+
+/* 3. Bomba de descompresión: dimensiones enormes declaradas en la cabecera. */
+const bombaPNG = (() => {
+  const b = Buffer.alloc(24);
+  b.writeUInt32BE(0x89504e47, 0);
+  b.writeUInt32BE(0x0d0a1a0a, 4);
+  b.writeUInt32BE(13, 8);
+  b.write('IHDR', 12);
+  b.writeUInt32BE(60000, 16);
+  b.writeUInt32BE(60000, 20);
+  return b;
+})();
+const bomba = await decodeImage(bombaPNG);
+check(
+  'seguridad: una imagen que declara 60000x60000 se rechaza sin decodificar',
+  bomba.payload === null && bomba.attempts === 0 && /por encima del límite/.test(bomba.error ?? ''),
+  'error=' + String(bomba.error) + ' intentos=' + String(bomba.attempts)
+);
+
 
 /* --- corpus --- */
 async function corpus(): Promise<void> {

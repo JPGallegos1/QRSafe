@@ -30,7 +30,68 @@ type JsQRFn = (
 ) => QRResult | null;
 const jsQR = jsQRImport as unknown as JsQRFn;
 
-const MAX_SIDE = 2600; // guard against multi-megapixel phone uploads
+const MAX_SIDE = 2600; // working size once the image is safely decoded
+const MAX_BYTES = 20 * 1024 * 1024; // WhatsApp caps images well below this
+const MAX_PIXELS = 50_000_000; // ~50 MP: above any phone camera, below a bomb
+const HEADER_BYTES = 65_536; // enough to reach the SOF marker of a normal JPEG
+
+/**
+ * Reads width and height from the file header WITHOUT decoding the image.
+ *
+ * This exists because `Jimp.read` allocates and decodes the full RGBA bitmap
+ * before returning, so any check done afterwards is too late: a small crafted
+ * file that declares enormous dimensions would already have exhausted memory.
+ * A decompression bomb has to be refused before it is handed to the decoder.
+ *
+ * Returns null when the format is unknown — the caller then falls back to the
+ * byte cap alone.
+ */
+function probeDimensions(head: Buffer): { width: number; height: number } | null {
+  // PNG: 8-byte signature, then the IHDR chunk with width/height as BE uint32.
+  if (head.length >= 24 && head.readUInt32BE(0) === 0x89504e47) {
+    return { width: head.readUInt32BE(16), height: head.readUInt32BE(20) };
+  }
+
+  // JPEG: walk the marker segments until a Start Of Frame.
+  if (head.length >= 4 && head[0] === 0xff && head[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < head.length) {
+      if (head[i] !== 0xff) {
+        i++;
+        continue;
+      }
+      const marker = head[i + 1];
+      if (marker === undefined) break;
+      // SOF0..SOF15, excluding DHT (c4), JPG (c8) and DAC (cc).
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { height: head.readUInt16BE(i + 5), width: head.readUInt16BE(i + 7) };
+      }
+      const segment = head.readUInt16BE(i + 2);
+      if (segment < 2) break;
+      i += 2 + segment;
+    }
+  }
+
+  return null;
+}
+
+/** Reads at most the first bytes of the source, without loading it whole. */
+async function readHead(source: string | Buffer): Promise<{ head: Buffer; bytes: number }> {
+  if (Buffer.isBuffer(source)) {
+    return { head: source.subarray(0, HEADER_BYTES), bytes: source.length };
+  }
+  const { stat, open } = await import('node:fs/promises');
+  const info = await stat(source);
+  const handle = await open(source, 'r');
+  try {
+    const head = Buffer.alloc(Math.min(HEADER_BYTES, info.size));
+    await handle.read(head, 0, head.length, 0);
+    return { head, bytes: info.size };
+  } finally {
+    await handle.close();
+  }
+}
+
 
 export interface DecodeResult {
   payload: string | null;
@@ -73,6 +134,38 @@ function scan(image: JimpImage): string | null {
  * photo says nothing about the code in it.
  */
 export async function decodeImage(source: string | Buffer): Promise<DecodeResult> {
+  // Refuse oversized input BEFORE handing it to the decoder.
+  try {
+    const { head, bytes } = await readHead(source);
+    if (bytes > MAX_BYTES) {
+      return {
+        payload: null,
+        via: null,
+        dims: null,
+        attempts: 0,
+        error: 'la imagen pesa ' + Math.round(bytes / 1024 / 1024) + ' MB, por encima del límite',
+      };
+    }
+    const declared = probeDimensions(head);
+    if (declared !== null && declared.width * declared.height > MAX_PIXELS) {
+      return {
+        payload: null,
+        via: null,
+        dims: declared.width + 'x' + declared.height,
+        attempts: 0,
+        error: 'la imagen declara ' + declared.width + 'x' + declared.height + ', por encima del límite',
+      };
+    }
+  } catch (err) {
+    return {
+      payload: null,
+      via: null,
+      dims: null,
+      attempts: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+
   let image: JimpImage;
   try {
     image = await Jimp.read(source as string);

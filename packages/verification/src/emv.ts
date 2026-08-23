@@ -31,8 +31,15 @@ export interface CRCInfo {
   embedded: string;
   computed: string;
   /**
+   * Whether the payload actually ends in the mandatory `63` field of length 4.
+   * Without this check a payload that OMITS the CRC TLV and simply appends
+   * crc16(prefix) would compare equal to itself and look intact.
+   */
+  present: boolean;
+  /**
    * Named `intact`, never `valid`: a well-formed forged code matches too.
-   * CRC-16 detects transmission errors, not forgery.
+   * CRC-16 detects transmission errors, not forgery. False whenever the
+   * structure is malformed, so a broken payload can never read as intact.
    */
   intact: boolean;
 }
@@ -49,6 +56,8 @@ export interface EMVReading {
   country: string | null;
   currency: string | null;
   isStatic: boolean;
+  /** Every byte of the payload was consumed by the TLV walk. */
+  wellFormed: boolean;
   crc: CRCInfo;
 }
 
@@ -145,6 +154,14 @@ export function parse(payload: string): EMVReading | null {
     }
   }
 
+  // The TLV walk must consume the whole payload: anything left over means the
+  // string is not a single well-formed EMV payload.
+  const consumed = fields.reduce((n, f) => n + 4 + f.value.length, 0);
+  const last = fields[fields.length - 1];
+  const crcPresent =
+    consumed === payload.length && last !== undefined && last.tag === '63' && last.value.length === 4;
+  const wellFormed = consumed === payload.length;
+
   const embedded = payload.slice(-4);
   const computed = crc16(payload.slice(0, -4));
 
@@ -160,7 +177,10 @@ export function parse(payload: string): EMVReading | null {
     country: flat['58'] ?? null,
     currency: flat['53'] ?? null,
     isStatic: flat['01'] === '11',
-    crc: { embedded, computed, intact: embedded === computed },
+    wellFormed,
+    // Structure first: a payload without its mandatory trailing 63 field can
+    // never be reported as intact, no matter what the last four bytes say.
+    crc: { embedded, computed, present: crcPresent, intact: crcPresent && embedded === computed },
   };
 }
 

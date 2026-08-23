@@ -26,18 +26,35 @@ export interface DomainMatches {
 export interface Domain {
   id: string;
   label: string;
-  /** Who answers for the codes of this domain. Null when it is the merchant itself. */
+  /**
+   * Who answers for every code of this domain, when a single party does — a
+   * municipality, an agency. Null when each enrolled code belongs to a
+   * different merchant; then the name comes from the entry itself.
+   *
+   * INVARIANT: a domain with `issuer: null` must not be `closed`. NO_AUTORIZADO
+   * has to name whoever failed to authorise the code, and a domain with no
+   * single issuer has nobody to name. Pinned by a test.
+   */
   issuer: string | null;
   closed: boolean;
   matches: DomainMatches;
-  authorized: Set<string>;
+  /**
+   * Identifier to the name of the business that authorised it. The value is not
+   * decoration: it is what the VERIFICADO message says out loud, and the whole
+   * product is the claim that the code belongs to the business in front of you.
+   * Naming the domain instead of the merchant answers a different question.
+   */
+  authorized: Map<string, string>;
 }
 
 export interface Lookup {
   domain: Domain | null;
+  /** Only the identifiers of the template that matched the domain. */
   keys: string[];
   enrolled: boolean;
   issuer: string | null;
+  /** Other account templates present in the payload. Each is an uncovered route. */
+  otherRoutes: string[];
 }
 
 export const DOMAINS: Domain[] = [
@@ -47,7 +64,7 @@ export const DOMAINS: Domain[] = [
     issuer: 'Municipalidad de Córdoba',
     closed: false, // flips to true once the municipality enumerates its POS ids
     matches: { schemes: ['ar.gob.cordoba.sem'], hosts: [] },
-    authorized: new Set<string>([]),
+    authorized: new Map<string, string>(),
   },
   {
     id: 'mercadopago',
@@ -55,7 +72,7 @@ export const DOMAINS: Domain[] = [
     issuer: null, // the issuer is the merchant, not Mercado Pago
     closed: false,
     matches: { schemes: ['com.mercadolibre'], hosts: ['mpago.la'] },
-    authorized: new Set<string>([]),
+    authorized: new Map<string, string>(),
   },
 ];
 
@@ -78,37 +95,75 @@ function hostOf(value: string): string | null {
   }
 }
 
-export function domainOf(reading: Reading | null): Domain | null {
-  if (!reading) return null;
+interface Match {
+  domain: Domain | null;
+  /** The account template that matched, e.g. '26' or '43'. */
+  template: string | null;
+}
+
+function match(reading: Reading | null): Match {
+  if (!reading) return { domain: null, template: null };
   const refs: AccountRef[] = reading.kind === 'emv' ? reading.accountRefs : [];
 
   for (const domain of DOMAINS) {
     for (const ref of refs) {
-      if (ref.scheme !== null && domain.matches.schemes.includes(ref.scheme)) return domain;
+      if (ref.scheme !== null && domain.matches.schemes.includes(ref.scheme)) {
+        return { domain, template: ref.template };
+      }
       const host = hostOf(ref.value);
-      if (host !== null && domain.matches.hosts.includes(host)) return domain;
+      if (host !== null && domain.matches.hosts.includes(host)) {
+        return { domain, template: ref.template };
+      }
     }
-    if (reading.kind === 'url' && domain.matches.hosts.includes(reading.host)) return domain;
+    if (reading.kind === 'url' && domain.matches.hosts.includes(reading.host)) {
+      return { domain, template: null };
+    }
   }
-  return null;
+  return { domain: null, template: null };
+}
+
+export function domainOf(reading: Reading | null): Domain | null {
+  return match(reading).domain;
 }
 
 /**
- * Looks up every account reference of a reading. A null `domain` means the
+ * Looks up the account references of a reading. A null `domain` means the
  * payload fell outside every known universe — the registry cannot speak.
+ *
+ * SCOPING RULE, and it is a security property, not tidiness: only the
+ * references of the template that matched the domain can authorise the code.
+ * An EMV payload may carry several merchant-account templates, and different
+ * wallets pick different ones. Letting any enrolled key vouch for the whole QR
+ * would let a crafted code keep one enrolled route beside a second, unrelated
+ * payment route and still come back VERIFICADO — while the money leaves through
+ * the other one. `otherRoutes` reports those extra routes so the caller can
+ * refuse to verify at all.
  */
 export function lookup(reading: Reading | null): Lookup {
-  const domain = domainOf(reading);
+  const { domain, template } = match(reading);
   const refs: AccountRef[] =
     reading !== null && reading.kind === 'emv' ? reading.accountRefs : [];
-  const keys = refs.map(keyFor).filter((k) => k.length > 0);
 
-  if (!domain) return { domain: null, keys, enrolled: false, issuer: null };
+  const scoped = template === null ? refs : refs.filter((r) => r.template === template);
+  const keys = scoped.map(keyFor).filter((k) => k.length > 0);
+
+  // Account templates other than the one that matched. Each is a payment route
+  // this verdict does not cover.
+  const otherRoutes = Array.from(
+    new Set(refs.filter((r) => r.template !== template).map((r) => r.template))
+  );
+
+  if (!domain) return { domain: null, keys, enrolled: false, issuer: null, otherRoutes };
+
+  // The merchant named on the enrolled entry wins over the domain-wide issuer:
+  // on an open marketplace every code belongs to a different business.
+  const named = keys.map((k) => domain.authorized.get(k)).find((v) => v !== undefined);
 
   return {
     domain,
     keys,
-    enrolled: keys.some((k) => domain.authorized.has(k)),
-    issuer: domain.issuer,
+    enrolled: named !== undefined,
+    issuer: named ?? domain.issuer,
+    otherRoutes,
   };
 }
