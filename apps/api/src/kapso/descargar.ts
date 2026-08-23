@@ -44,7 +44,20 @@ export async function descargarMedia(url: string): Promise<Descarga> {
     return { bytes: null, error: 'el archivo declara ' + String(declarado) + ' bytes' }
   }
 
-  const buffer = Buffer.from(await respuesta.arrayBuffer())
+  // Consumir el cuerpo puede fallar aparte de la conexión: si el servidor manda
+  // las cabeceras y después el cuerpo se corta o se pasa del tiempo límite,
+  // `fetch` ya resolvió y es `arrayBuffer` el que rechaza. Sin este try esa
+  // falla escapa de la función y saltea la respuesta al usuario.
+  let buffer: Buffer
+  try {
+    buffer = Buffer.from(await respuesta.arrayBuffer())
+  } catch (err) {
+    return {
+      bytes: null,
+      error: 'se cortó la descarga: ' + (err instanceof Error ? err.message : String(err)),
+    }
+  }
+
   if (buffer.length > MAX_BYTES) {
     return { bytes: null, error: 'el archivo pesa ' + String(buffer.length) + ' bytes' }
   }
