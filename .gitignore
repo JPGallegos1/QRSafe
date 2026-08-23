@@ -16,3 +16,6 @@ dist/
 Thumbs.db
 *.local
 
+
+# QR de prueba: se regeneran con scripts/qr-pruebas/generar.mts
+/qr-pruebas/
