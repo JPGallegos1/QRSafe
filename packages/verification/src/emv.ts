@@ -90,11 +90,26 @@ export const FIELD_NAMES: Readonly<Record<string, string>> = {
   '63': 'CRC',
 };
 
-/** CRC-16/CCITT-FALSE — the checksum EMVCo mandates for field 63. */
+const UTF8 = new TextEncoder();
+const FROM_UTF8 = new TextDecoder('utf-8', { fatal: false });
+
+/** Length of a string in UTF-8 bytes, which is the unit EMVCo counts in. */
+export function byteLength(input: string): number {
+  return UTF8.encode(input).length;
+}
+
+/**
+ * CRC-16/CCITT-FALSE — the checksum EMVCo mandates for field 63.
+ *
+ * Computed over UTF-8 BYTES, not JavaScript characters. A merchant named
+ * "PANADERÍA" is 9 characters but 10 bytes, and the checksum an issuer
+ * publishes is the one over its bytes.
+ */
 export function crc16(input: string): string {
+  const bytes = UTF8.encode(input);
   let crc = 0xffff;
-  for (let i = 0; i < input.length; i++) {
-    crc ^= input.charCodeAt(i) << 8;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= (bytes[i] as number) << 8;
     for (let bit = 0; bit < 8; bit++) {
       crc = (crc & 0x8000) !== 0 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
     }
@@ -102,16 +117,25 @@ export function crc16(input: string): string {
   return crc.toString(16).toUpperCase().padStart(4, '0');
 }
 
-/** Splits one level of TLV. Returns what it managed to read; [] if not TLV-shaped. */
+/**
+ * Splits one level of TLV. Returns what it managed to read; [] if not TLV-shaped.
+ *
+ * Walks UTF-8 BYTES, because the declared length is a byte count. Walking
+ * JavaScript characters instead misaligns the whole payload as soon as any
+ * value carries a non-ASCII character — an accent in a merchant name is enough,
+ * and in Argentina that is the common case, not the edge case.
+ */
 export function splitTLV(input: string): TLVField[] {
+  const bytes = UTF8.encode(input);
   const fields: TLVField[] = [];
   let i = 0;
-  while (i + 4 <= input.length) {
-    const tag = input.substr(i, 2);
-    const length = Number.parseInt(input.substr(i + 2, 2), 10);
-    if (!/^\d{2}$/.test(tag) || Number.isNaN(length)) return fields;
-    if (i + 4 + length > input.length) return fields;
-    fields.push({ tag, value: input.substr(i + 4, length) });
+  while (i + 4 <= bytes.length) {
+    const tag = FROM_UTF8.decode(bytes.subarray(i, i + 2));
+    const lengthText = FROM_UTF8.decode(bytes.subarray(i + 2, i + 4));
+    if (!/^\d{2}$/.test(tag) || !/^\d{2}$/.test(lengthText)) return fields;
+    const length = Number.parseInt(lengthText, 10);
+    if (i + 4 + length > bytes.length) return fields;
+    fields.push({ tag, value: FROM_UTF8.decode(bytes.subarray(i + 4, i + 4 + length)) });
     i += 4 + length;
   }
   return fields;
@@ -155,15 +179,19 @@ export function parse(payload: string): EMVReading | null {
   }
 
   // The TLV walk must consume the whole payload: anything left over means the
-  // string is not a single well-formed EMV payload.
-  const consumed = fields.reduce((n, f) => n + 4 + f.value.length, 0);
+  // string is not a single well-formed EMV payload. Counted in bytes, like the
+  // declared lengths themselves.
+  const totalBytes = byteLength(payload);
+  const consumed = fields.reduce((n, f) => n + 4 + byteLength(f.value), 0);
   const last = fields[fields.length - 1];
   const crcPresent =
-    consumed === payload.length && last !== undefined && last.tag === '63' && last.value.length === 4;
-  const wellFormed = consumed === payload.length;
+    consumed === totalBytes && last !== undefined && last.tag === '63' && byteLength(last.value) === 4;
+  const wellFormed = consumed === totalBytes;
 
-  const embedded = payload.slice(-4);
-  const computed = crc16(payload.slice(0, -4));
+  // The last four bytes are the checksum; the rest is what it covers.
+  const allBytes = UTF8.encode(payload);
+  const embedded = FROM_UTF8.decode(allBytes.subarray(allBytes.length - 4));
+  const computed = crc16(FROM_UTF8.decode(allBytes.subarray(0, allBytes.length - 4)));
 
   return {
     kind: 'emv',
