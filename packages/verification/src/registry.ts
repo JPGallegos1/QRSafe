@@ -74,6 +74,31 @@ export const DOMAINS: Domain[] = [
     matches: { schemes: ['com.mercadolibre'], hosts: ['mpago.la'] },
     authorized: new Map<string, string>(),
   },
+  {
+    /**
+     * Demonstration domain, and the only CLOSED one.
+     *
+     * VERIFIED and UNAUTHORIZED depend on the registry, not on the code, so with
+     * an empty registry no QR on earth can produce them — which leaves the two
+     * states that matter most impossible to try end to end. This domain makes
+     * them reachable.
+     *
+     * It is safe to ship because it matches a scheme no real code carries:
+     * `ar.qrsafe.demo` exists only in codes we generate ourselves. It cannot
+     * collide with a real merchant, and it cannot vouch for one either — the
+     * only thing it can ever say is that a demo code belongs to the demo.
+     *
+     * `scripts/qr-tests/generate.mts` builds the two codes: the enrolled one
+     * comes back VERIFIED, and a second one in the same closed domain comes
+     * back UNAUTHORIZED.
+     */
+    id: 'demo',
+    label: 'QRSafe demonstration codes',
+    issuer: 'QRSafe (demostración)',
+    closed: true,
+    matches: { schemes: ['ar.qrsafe.demo'], hosts: [] },
+    authorized: new Map<string, string>([['DEMO-OK-001', 'Kiosco de demostración']]),
+  },
 ];
 
 /**
