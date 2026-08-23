@@ -4,7 +4,7 @@
 
 ## Resumen ejecutivo
 
-> **VERIFICADO EMPÍRICAMENTE el 2026-08-22.** La pregunta se cerró ejecutando el runbook contra el sandbox real (`phone_number_id` 597907523413541, sesión activada desde +54 341 641 7981). Todo lo que sigue en este resumen es **HECHO observado**, no lectura de documentación. Las secciones 1 a 4 conservan el análisis documental previo, con las correcciones marcadas donde la realidad lo contradijo.
+> **VERIFICADO EMPÍRICAMENTE el 2026-08-22.** La pregunta se cerró ejecutando el runbook contra el sandbox real (`phone_number_id` 597907523413541, con una sesión activada desde un teléfono del equipo). Todo lo que sigue en este resumen es **HECHO observado**, no lectura de documentación. Las secciones 1 a 4 conservan el análisis documental previo, con las correcciones marcadas donde la realidad lo contradijo.
 
 **El sandbox de Kapso SÍ entrega mensajes con imagen.** Un mensaje enviado desde un teléfono al número de sandbox llegó como `type: "image"` con `has_media: true` y el objeto `media_data` completo. La documentación no lo declaraba ni a favor ni en contra; la prueba lo cerró.
 
@@ -126,7 +126,7 @@ El envelope completo de `whatsapp.message.received` (visible en el ejemplo de me
 ```json
 {
   "type": "image",
-  "from": "543416417981",
+  "from": "54XXXXXXXXXX",
   "id": "wamid.HBgNNTQ5MzQxNjQxNzk4MRUCABIYIEFDMjZBRDFF...",
   "timestamp": "1787443106",
   "image": {
@@ -141,11 +141,11 @@ El envelope completo de `whatsapp.message.received` (visible en el ejemplo de me
     "status": "delivered",
     "processing_status": "pending",
     "origin": "cloud_api",
-    "phone_number": "543416417981",
+    "phone_number": "54XXXXXXXXXX",
     "phone_number_id": "597907523413541",
     "has_media": true,
     "whatsapp_conversation_id": "20e0e0c5-d08f-4361-8d3c-f563d58ee884",
-    "contact_name": "Andrea",
+    "contact_name": "<nombre del contacto>",
     "content": "Image attached (image_cd71339006dd.jpeg) [Size: 115.1 KB | Type: image/jpeg] URL: https://app.kapso.ai/rails/active_storage/...",
     "media_url": "https://app.kapso.ai/rails/active_storage/blobs/redirect/eyJfcmFpbHMi...--97f070bb.../image_cd71339006dd.jpeg",
     "media_data": {
@@ -167,6 +167,8 @@ El envelope completo de `whatsapp.message.received` (visible en el ejemplo de me
 | Campo `image.url` | no aparece en el ejemplo | URL de `lookaside.fbsbx.com` con `ext=<epoch>` |
 | Campo `image.link` | no aparece en el ejemplo | duplica la URL del blob de Kapso |
 | `message_type_data` | no documentado | presente, vacío en este caso |
+
+> **Los datos personales van anonimizados a propósito.** El número de teléfono y el nombre del contacto de la prueba se reemplazaron por marcadores: este repositorio es público, y un payload de ejemplo no necesita el número real de nadie para documentar la forma del mensaje. Lo que importa acá es la estructura, no quién mandó la foto.
 
 **Claves reales del sobre `kapso`** en un mensaje con media: `direction`, `status`, `processing_status`, `origin`, `phone_number`, `phone_number_id`, `has_media`, `whatsapp_conversation_id`, `contact_name`, `content`, `media_data`, `media_url`, `message_type_data`.
 
@@ -350,7 +352,9 @@ El informe original tomó estos comandos de la documentación, no de la herramie
 
 **VACÍO / GOTCHA NUEVO.** Los tipos del SDK declaran `kapso.content` como `Record<string, unknown>`, mientras el ejemplo de la documentación de webhooks lo muestra como **string** (`"Photo description Image attached (photo.jpg) ..."`). Las dos cosas no pueden ser ciertas a la vez. **No parsear `content` hasta ver un payload real.**
 
-**INFERENCIA (débil).** `GET https://api.kapso.ai/media/<id-inexistente>` sin credencial devuelve **404 HTML**, no 401 ni 403. La ruta existe en ese host, pero esto **no dice nada** sobre si una URL de media válida requiere `X-API-Key`: un 404 puede emitirse antes o después de autorizar. La pregunta sigue abierta y la resuelve el paso 5.
+**RESUELTO POR LA PRUEBA.** El análisis previo era una inferencia débil: `GET https://api.kapso.ai/media/<id-inexistente>` sin credencial devuelve **404 HTML**, no 401 ni 403, lo que no permitía concluir nada porque un 404 puede emitirse antes o después de autorizar.
+
+La medición del 2026-08-22 lo cierra: la URL real de `media_data` se descargó **sin ninguna credencial**, con `HTTP 200` y los `byte_size` exactos. **No requiere `X-API-Key`.** Con la consecuencia de seguridad correspondiente: esa URL es un secreto, porque quien la tenga baja el archivo.
 
 ### 5.1 Scripts para no hacerlo a mano
 
@@ -605,11 +609,20 @@ El motor no cambia. `decodeImage(source: string | Buffer)` en `packages/verifica
 
 ## Limitaciones de esta investigación
 
-- **La pregunta principal sigue abierta.** No se ejecutó una sesión de sandbox ni se envió una imagen, porque ambos pasos requieren una cuenta de Kapso y un teléfono humano. El runbook de la sección 5 existe precisamente para cerrar este vacío, y hasta que alguien lo corra **no debe escribirse en ningún lado que el sandbox entrega imágenes**.
-- **La vigencia de `media_data.url` es el segundo vacío, y es el que más cuesta si se asume mal.** No está documentada. El paso 5 del runbook la mide.
-- **No se sabe si `media_data.url` requiere autenticación.** La doc no lo dice. Se mide en el mismo paso.
-- **Casi toda la evidencia sigue siendo documental.** Se leyó el corpus completo publicado por Kapso (`llms-full.txt`, 615 KB) y se verificó que las páginas citadas devuelven `200`. **No se ejecutó ninguna llamada autenticada a la API de Kapso**, porque no hay credencial: el login es interactivo y quedó como paso humano.
-- **La excepción es la sección 5, que ahora sí tiene evidencia de herramienta.** Los comandos del runbook fueron auditados contra `@kapso/cli` 0.18.0 instalado localmente: se corrieron los `--help` de cada subcomando y se leyeron los tipos del paquete. Eso permitió corregir el `jq '.[0]'` (era `.data[0]`) y agregar `kapso logs search`. **Lo que esa auditoría NO puede decir es qué devuelve el servidor**: la forma de la respuesta viene de los tipos declarados por el SDK, no de una respuesta real.
+> **Reconciliadas con el experimento del 2026-08-22.** Una versión anterior de esta sección decía que la pregunta principal seguía abierta. Ya no lo está: el runbook se ejecutó. Lo que sigue distingue lo que quedó probado de lo que sigue sin medirse.
+
+**Cerrado por la prueba:**
+
+- **El sandbox entrega imágenes.** Se envió una foto desde un teléfono y llegó como `type: "image"` con `has_media: true` y `media_data` completo. Antes esto no podía escribirse en ningún lado; ahora es un hecho observado.
+- **`media_data.url` no requiere autenticación.** Descarga anónima con `HTTP 200` y los `byte_size` exactos.
+- **La forma de la respuesta ya no viene de los tipos del SDK.** Antes se conocía por la declaración del paquete; ahora hay un payload real capturado, y difiere de la documentación en el host del blob.
+
+**Sigue abierto:**
+
+- **La vigencia de `media_data.url` no se midió.** Es el vacío que más cuesta si se asume mal. La descarga se hizo a los pocos minutos de recibido el mensaje, así que no se sabe si esa URL vence ni cuándo. `scripts/kapso/check-media-url.sh` la mide; hasta correrlo, el requisito de diseño es descargar al recibir el webhook y persistir los bytes.
+- **No se probó la lectura de un código real por el canal.** El pipeline completo funcionó —WhatsApp, Kapso, descarga, `decodeImage`— pero la imagen de prueba era generada por IA y su patrón no es un QR válido, así que devolvió `ILEGIBLE` tras 91 intentos. **Falta repetirlo con una foto de un QR de verdad**; `scripts/qr-pruebas/` genera hojas listas para fotografiar.
+- **No se probó el webhook.** Todo lo verificado se hizo consultando la API por CLI. Que Kapso entregue el mismo payload a un endpoint propio es una inferencia razonable, no un hecho medido.
+- **Retención**: cuánto tiempo Kapso conserva el archivo no está documentado en ninguna parte. Publica capacidad, nunca tiempo.
 - **Los scripts de `scripts/kapso/` no fueron probados contra Kapso.** Se validó su sintaxis, su manejo del error `Not authenticated`, y su parser contra payloads sintéticos con la forma que documenta la sección 2. `check-media-url.sh` se probó contra URLs reales que devuelven `200` y `404`. **Ninguno corrió todavía contra un mensaje real.**
 - **La documentación de Kapso cambia rápido.** Todo lo citado corresponde a la versión del 2026-08-22.
 - **Una URL falló:** `https://docs.kapso.ai/docs/integrations/api-webhooks` → **HTTP 404**. `https://www.npmjs.com/package/@kapso/cli` devolvió **HTTP 403** a la herramienta automatizada; el dato de versión se obtuvo de `https://registry.npmjs.org/@kapso/cli/latest`.

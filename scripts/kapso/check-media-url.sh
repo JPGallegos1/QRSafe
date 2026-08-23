@@ -91,7 +91,13 @@ sonda_http() {
 
   local codigo
   # -I = HEAD. No baja los bytes, que es lo que queremos para medir vigencia.
-  codigo=$(curl -sS -I \
+  #
+  # -L es obligatorio: la URL de Active Storage devuelve 302 hacia el objeto
+  # real. Sin seguir el redirect medimos si el redirector sigue vivo, que no es
+  # la pregunta; la pregunta es si el objeto todavia entrega bytes. Un 302 sin
+  # seguir quedaba clasificado como inesperado y la medicion no servia.
+  # Con -L, %{http_code} reporta el codigo FINAL de la cadena.
+  codigo=$(curl -sS -I -L \
     --max-time 30 \
     -o "$headers_tmp" \
     -w '%{http_code}' \
@@ -203,8 +209,18 @@ for MIN in $MINUTOS; do
   # En el minuto 0, opcionalmente bajamos los bytes para probarlos contra el motor.
   if [ "$MIN" = "0" ] && [ -n "$DOWNLOAD" ]; then
     echo "  Descargando bytes a ${DOWNLOAD} ..."
+    # OJO: curl reenvía las cabeceras -H a los saltos siguientes de un redirect.
+    # La URL de Active Storage salta a otro host, así que combinar -L con
+    # X-API-Key le entrega la clave del proyecto al storage. Se resuelve en dos
+    # pasos: pedimos sin seguir, y el objeto final se baja SIN la cabecera.
     if [ -n "$API_KEY" ]; then
-      curl -sSL --max-time 60 -H "X-API-Key: ${API_KEY}" "$URL" -o "$DOWNLOAD"
+      destino=$(curl -sS -o /dev/null -w '%{redirect_url}'         --max-time 30 -H "X-API-Key: ${API_KEY}" "$URL" 2>/dev/null)
+      if [ -n "$destino" ]; then
+        echo "  Redirect a otro host: la clave NO se reenvía."
+        curl -sS --max-time 60 "$destino" -o "$DOWNLOAD"
+      else
+        curl -sS --max-time 60 -H "X-API-Key: ${API_KEY}" "$URL" -o "$DOWNLOAD"
+      fi
     else
       curl -sSL --max-time 60 "$URL" -o "$DOWNLOAD"
     fi
