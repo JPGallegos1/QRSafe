@@ -135,6 +135,28 @@ export const MENSAJES = {
         '.'
     ),
 
+  /**
+   * El código dice llamarse como un comercio certificado, pero no es ninguno de
+   * los que ese comercio registró.
+   *
+   * Es una advertencia, no una duda: certificar significa que el comercio
+   * enumeró sus códigos, así que la ausencia de uno ES la respuesta. Contestar
+   * «no puedo confirmar ni descartar» acá vaciaría de sentido la certificación.
+   *
+   * La frase dice que el código no está entre los registrados, y no que sea
+   * fraudulento, porque eso es cierto también en el caso raro de dos comercios
+   * distintos con el mismo nombre.
+   */
+  noEstaEntreLosRegistrados: (comercio: string): string =>
+    componer(
+      SIMBOLO.advertencia,
+      'Este código no es de ' + limpiarTextoDelCodigo(comercio, 40),
+      limpiarTextoDelCodigo(comercio, 40) +
+        ' es un comercio certificado y registró sus códigos de cobro. Este no es ninguno de ellos.' +
+        String.fromCharCode(10, 10) +
+        'No pagues con este código. Avisale al comercio.'
+    ),
+
   fueraDeCobertura: (): string =>
     componer(
       SIMBOLO.sinDatos,
