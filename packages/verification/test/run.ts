@@ -76,7 +76,7 @@ check(
 );
 check(
    'rule: out of coverage makes clear that it is not a warning',
-   /not a warning/i.test(outOfCoverage.message),
+   /no es una advertencia/i.test(outOfCoverage.message),
   outOfCoverage.message
 );
 
@@ -120,7 +120,7 @@ check(
 );
 check(
   'registry: VERIFIED names the MERCHANT, not the domain',
-  /authorized by Coto CICSA/.test(enrolled.message),
+  /autorizado por Coto CICSA/.test(enrolled.message),
   enrolled.message
 );
 check(
@@ -215,7 +215,7 @@ check(
 );
 check(
   'routes: the verdict is ANOMALY and names the issue',
-  routesVerdict.state === STATES.ANOMALY && /more than one payment route/.test(routesVerdict.message),
+  routesVerdict.state === STATES.ANOMALY && /cuentas de cobro distintas/.test(routesVerdict.message),
   routesVerdict.message
 );
 check(
@@ -352,6 +352,47 @@ check(
   'vertical=' + verticalCost + ' landscape=' + landscapeCost
 );
 
+
+/* --- the copy is the product ---
+   These strings are the only thing the person sees, and they arrive on a phone
+   while someone decides whether to pay. They live in messages.ts, in Spanish,
+   because that is the product surface; everything else here is English because
+   developers read it. These checks defend that boundary. */
+const ALL_VERDICTS = [
+  verify(null),
+  verify('not a qr'),
+  verify(REAL.coto),
+  verify(twoRoutes),
+  verify(missingCrc),
+  withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(REAL.coto)),
+  withDomain(true, [], () => verify(REAL.coto)),
+]
+
+check(
+  'copy: no message leaks field numbers, CRC values or internal names',
+  !ALL_VERDICTS.some((v) => /field \d|CRC|tag|0x[0-9a-f]/i.test(v.message)),
+  ALL_VERDICTS.map((v) => v.message).find((m) => /field \d|CRC|tag/i.test(m)) ?? ''
+)
+check(
+  'copy: every message opens with a symbol and a bold title',
+  ALL_VERDICTS.every((v) => /^\S+ \*[^*]+\*/u.test(v.message)),
+  ALL_VERDICTS.map((v) => v.message.slice(0, 26)).join(' | ')
+)
+/* The one that matters: silence must not look like an alarm. Softening this is
+   what drains the meaning from the real warning. */
+check(
+  'copy: out of coverage does NOT use the warning symbol',
+  !verify(REAL.coto).message.startsWith('⚠'),
+  verify(REAL.coto).message.slice(0, 22)
+)
+check(
+  'copy: the real warning DOES use it',
+  withDomain(true, [], () => verify(REAL.coto)).message.startsWith('⚠')
+)
+check(
+  'copy: user-facing text is in Spanish, not English',
+  ALL_VERDICTS.every((v) => !/(the code|warning\.|verified qr|I could not)/i.test(v.message))
+)
 
 /* --- image corpus --- */
 async function imageCorpus(): Promise<void> {

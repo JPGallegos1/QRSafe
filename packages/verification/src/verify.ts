@@ -24,6 +24,7 @@ import * as emv from './emv.js';
 import * as registry from './registry.js';
 import type { Reading } from './emv.js';
 import type { Lookup } from './registry.js';
+import { MENSAJES, NOTAS } from './messages.js';
 
 export const STATES = {
   VERIFIED: 'VERIFIED',
@@ -59,48 +60,40 @@ export function structuralNotes(reading: Reading): Note[] {
   if (!reading.wellFormed) {
     notes.push({
       level: 'high',
-      text: 'The code structure is invalid: extra characters appear after the last valid field.',
+      text: NOTAS.estructuraRota(),
     });
   } else if (!reading.crc.present) {
     notes.push({
       level: 'high',
-      text: 'The code is missing mandatory control field 63. Without it, there is nothing to verify.',
+      text: NOTAS.faltaControl(),
     });
   } else if (!reading.crc.intact) {
     notes.push({
       level: 'high',
-      text:
-        'The control code does not match (' +
-        reading.crc.embedded +
-        ' declared, ' +
-        reading.crc.computed +
-        ' computed). The content was altered or read incorrectly.',
+      text: NOTAS.controlNoCoincide(),
     });
   }
 
   const name = reading.declaredName;
   if (name === null || /^undefined$/i.test(name)) {
-    notes.push({ level: 'medium', text: 'The code does not declare a merchant name.' });
+    notes.push({ level: 'medium', text: NOTAS.sinNombre() });
   } else if (CLAIMED_PUBLIC.test(name)) {
     notes.push({
       level: 'medium',
-      text:
-        'The code says it charges in the name of "' +
-        name +
-        '". This is free text that anyone can enter; it does not prove who receives the money.',
+      text: NOTAS.nombreLibre(name),
     });
   }
 
   if (reading.country !== null && reading.country !== 'AR') {
     notes.push({
       level: 'high',
-      text: 'The code declares country ' + reading.country + ', not Argentina.',
+      text: NOTAS.otroPais(),
     });
   }
   if (reading.currency !== null && reading.currency !== '032') {
     notes.push({
       level: 'high',
-      text: 'The code declares a currency other than the Argentine peso.',
+      text: NOTAS.otraMoneda(),
     });
   }
   return notes;
@@ -110,7 +103,7 @@ export function verify(payload: string | null): Verdict {
   if (payload === null || payload.length === 0) {
     return {
       state: STATES.UNREADABLE,
-      message: 'I could not read a code in the image. Try better lighting, a straight angle, and a closer shot.',
+      message: MENSAJES.ilegible(),
       notes: [],
       reading: null,
       registry: null,
@@ -121,8 +114,7 @@ export function verify(payload: string | null): Verdict {
   if (!reading) {
     return {
       state: STATES.OUT_OF_COVERAGE,
-      message:
-        'I read the code, but it is not a known payment or link format, so I cannot analyze it. This is not a warning.',
+      message: MENSAJES.noReconocido(),
       notes: [],
       reading: null,
       registry: null,
@@ -138,12 +130,7 @@ export function verify(payload: string | null): Verdict {
   if (hit.otherRoutes.length > 0) {
     notes.push({
       level: 'high',
-      text:
-        'the code declares more than one payment route (' +
-        [hit.domain !== null ? 'the analyzed route' : 'unidentified route']
-          .concat(hit.otherRoutes.map((t) => 'field ' + t))
-          .join(', ') +
-        '). It is not possible to determine which one would be charged.',
+      text: NOTAS.variasCuentas(hit.otherRoutes.length),
     });
   }
 
@@ -153,7 +140,7 @@ export function verify(payload: string | null): Verdict {
   if (first !== undefined) {
     return {
       state: STATES.ANOMALY,
-      message: 'There is something unusual about this code: ' + first.text,
+      message: MENSAJES.anomalia(first.text),
       notes,
       reading,
       registry: hit,
@@ -163,7 +150,7 @@ export function verify(payload: string | null): Verdict {
   if (hit.domain !== null && hit.enrolled) {
     return {
       state: STATES.VERIFIED,
-      message: 'Verified QR. This code is authorized by ' + (hit.issuer ?? hit.domain.label) + '.',
+      message: MENSAJES.verificado(hit.issuer ?? hit.domain.label),
       notes,
       reading,
       registry: hit,
@@ -173,10 +160,7 @@ export function verify(payload: string | null): Verdict {
   if (hit.domain !== null && hit.domain.closed) {
     return {
       state: STATES.UNAUTHORIZED,
-      message:
-        'Warning. This QR is not registered as a payment method authorized by ' +
-        (hit.issuer ?? hit.domain.label) +
-        '.',
+      message: MENSAJES.noAutorizado(hit.issuer ?? hit.domain.label),
       notes,
       reading,
       registry: hit,
@@ -186,8 +170,7 @@ export function verify(payload: string | null): Verdict {
   // Domain unknown, or known but still open: the registry cannot speak.
   return {
     state: STATES.OUT_OF_COVERAGE,
-    message:
-      'I do not have a record for this merchant yet, so I cannot confirm or rule out anything. This is not a warning.',
+    message: MENSAJES.fueraDeCobertura(),
     notes,
     reading,
     registry: hit,

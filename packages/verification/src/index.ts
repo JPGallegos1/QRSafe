@@ -17,3 +17,5 @@ export type { Reading, EMVReading, URLReading, TLVField, AccountRef, CRCInfo } f
 
 export { DOMAINS, lookup, keyFor, domainOf } from './registry.js';
 export type { Domain, Lookup } from './registry.js';
+
+export { MENSAJES, NOTAS } from './messages.js';
