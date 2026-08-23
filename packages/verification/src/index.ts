@@ -19,3 +19,6 @@ export { DOMAINS, lookup, keyFor, domainOf } from './registry.js';
 export type { Domain, Lookup } from './registry.js';
 
 export { MENSAJES, NOTAS } from './messages.js';
+
+export { warrantsContextCheck, withContext } from './context.js';
+export type { ContextAnalyzer, ContextFindings, ContextHints } from './context.js';

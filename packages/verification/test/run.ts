@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import * as emv from '../src/emv.js';
 import { verify, STATES } from '../src/verify.js';
+import { warrantsContextCheck, withContext } from '../src/context.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
 import QRCode from 'qrcode';
@@ -393,6 +394,42 @@ check(
   'copy: user-facing text is in Spanish, not English',
   ALL_VERDICTS.every((v) => !/(the code|warning\.|verified qr|I could not)/i.test(v.message))
 )
+
+/* --- context check: when it is worth looking at the photo ---
+   Reading the photo costs money per message, so the decision to spend it is
+   domain logic and gets tested without a network. The rule that carries the
+   cost: the common case — clean code, empty registry, nothing odd — must not
+   trigger a call, because that is most traffic. */
+check(
+  'context: a clean code with an empty registry does NOT trigger a look',
+  warrantsContextCheck(verify(REAL.coto)) === null,
+  String(warrantsContextCheck(verify(REAL.coto)))
+)
+check(
+  'context: an anomaly does trigger it',
+  warrantsContextCheck(verify(twoRoutes)) !== null
+)
+check(
+  'context: an accusation triggers it, so the photo can corroborate',
+  warrantsContextCheck(withDomain(true, [], () => verify(REAL.coto))) !== null
+)
+check(
+  'context: a name that cannot be proven triggers it',
+  warrantsContextCheck(verify(REAL.mercadoPagoSign)) !== null,
+  'mercadoPagoSign declares UNDEFINED as its name'
+)
+
+/* Context may add to what is said, never overturn who says it: an image cannot
+   promote anything to VERIFIED, because verification is somebody taking
+   responsibility, not something looking right. */
+const beforeContext = verify(twoRoutes)
+const afterContext = withContext(beforeContext, {
+  provider: 'test',
+  notes: [{ level: 'medium', text: 'Hay un adhesivo pegado sobre el código.' }],
+})
+check('context: the state does not change', afterContext.state === beforeContext.state)
+check('context: the message does not change', afterContext.message === beforeContext.message)
+check('context: the observation is added', afterContext.notes.length === beforeContext.notes.length + 1)
 
 /* --- image corpus --- */
 async function imageCorpus(): Promise<void> {
