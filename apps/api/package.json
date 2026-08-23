@@ -8,11 +8,13 @@
     "check": "tsc -p tsconfig.json --noEmit --pretty false",
     "dev": "npm --workspace @qrsafe/verification run build && tsx watch src/server.ts",
     "lint": "oxlint src",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "express": "^5.2.1",
-    "@qrsafe/verification": "*"
+    "@qrsafe/verification": "*",
+    "@supabase/supabase-js": "^2.112.3",
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

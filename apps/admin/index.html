@@ -1,12 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QRSafe Admin</title>
+    <meta name="theme-color" content="#081219" />
+    <meta name="description" content="Panel merchant de QRSafe" />
+    <title>QRSafe · Panel merchant</title>
   </head>
   <body>
+    <!--
+      THESIS: Cada estado de confianza ocupa un instrumento legible; rechazamos el dashboard de tarjetas intercambiables.
+      OWN-WORLD: Panel nocturno azul tinta, marcas blancas, señal verde y ámbar sólo para atención.
+      STORY: El merchant se identifica, completa la verificación, registra un punto y activa el binding del QR.
+      FIRST VIEWPORT: Navegación compacta, estado general dominante y una única siguiente acción en el área principal.
+      FORM: Instrumentos de vuelo, dirección asignada 4, seed cac01bf1.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+    -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

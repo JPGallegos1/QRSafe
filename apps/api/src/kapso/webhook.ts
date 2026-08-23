@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express'
-import { decodeImage, verify } from '@qrsafe/verification'
+import { decodeImage } from '@qrsafe/verification'
 
+import { lookupActiveBinding } from '../lookup.js'
+import { analyzePayload } from '../qr.js'
 import { verifySignature } from './signature.js'
 import { downloadMedia } from './download.js'
 import { sendText } from './reply.js'
@@ -41,7 +43,7 @@ function alreadyProcessed(key: string | undefined): boolean {
   return false
 }
 
-const NO_IMAGE = 'Send me a photo of the QR code and I will tell you what I can verify. I can only read images for now.'
+const NO_IMAGE = 'Enviame una foto del codigo QR y te dire que informacion puedo verificar. Por ahora solo puedo leer imagenes.'
 
 export function handleWebhook(request: Request, response: Response): void {
   const signature = verifySignature(
@@ -52,7 +54,9 @@ export function handleWebhook(request: Request, response: Response): void {
 
   if (!signature.valid) {
     console.warn('[webhook] rejected signature: ' + String(signature.reason))
-    response.status(401).json({ error: 'invalid_signature' })
+    response.status(401).json({
+      error: { code: 'firma_invalida', message: 'La firma del webhook no es valida.' },
+    })
     return
   }
 
@@ -120,30 +124,53 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
     await reply(
       phoneNumberId,
       destination,
-      'I could not open the image you sent. Please try sending it again.',
+      'No pude abrir la imagen que enviaste. Intenta enviarla nuevamente.',
       'download-failed'
     )
     return
   }
 
   const reading = await decodeImage(bytes)
-  const verdict = verify(reading.payload)
-
-  const observations = verdict.notes
-    .filter((note) => note.level === 'medium')
-    .map((n) => '\n\n• ' + n.text)
-    .join('')
+  const analysis = analyzePayload(reading.payload)
 
   console.log(
     '[webhook] ' +
-      verdict.state +
+      (analysis.ok ? 'EMV_VALID' : analysis.code) +
       ' · reading=' +
       (reading.via ?? 'unreadable') +
       ' · attempts=' +
       String(reading.attempts)
   )
 
-  await reply(phoneNumberId, destination, verdict.message + observations, verdict.state)
+  if (!analysis.ok) {
+    const details = analysis.details.map((detail) => '\n\n- ' + detail).join('')
+    await reply(phoneNumberId, destination, analysis.message + details, analysis.code)
+    return
+  }
+
+  let binding = null
+  try {
+    binding = await lookupActiveBinding(reading.payload as string)
+  } catch (error) {
+    console.error('[webhook] no se pudo consultar el registro:', error)
+  }
+
+  if (binding) {
+    await reply(
+      phoneNumberId,
+      destination,
+      `Este QR esta registrado en QRSafe y autorizado por ${binding.businessName} para el punto ${binding.paymentPointName}. Verifica el importe y el destinatario antes de pagar.`,
+      'registered'
+    )
+    return
+  }
+
+  await reply(
+    phoneNumberId,
+    destination,
+    'Pude leer un QR de pago valido, pero no figura en el registro de QRSafe. Esto no significa que sea ilegitimo: no puedo confirmarlo ni descartarlo.',
+    'out-of-coverage'
+  )
 }
 
 /**
