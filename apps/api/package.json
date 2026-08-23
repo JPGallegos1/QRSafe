@@ -11,7 +11,8 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "@qrsafe/verification": "*"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
