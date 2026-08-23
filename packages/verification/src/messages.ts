@@ -32,8 +32,17 @@
  * separately.
  */
 
-/** Line break and the WhatsApp formatting characters, by code point. */
-const SALTOS = new RegExp("[\u0000-\u001F\u007F-\u009F\u2028\u2029]", "g");
+/**
+ * Un carácter que puede fabricar estructura en el mensaje: saltos de línea y
+ * controles. Se decide por punto de código en vez de por expresión regular —
+ * un regex con caracteres de control se escribe mal con una sola capa de
+ * comillas de más, y eso ya pasó en este mismo archivo.
+ */
+function fabricaEstructura(punto: number): boolean {
+  return punto < 0x20 || (punto >= 0x7f && punto <= 0x9f) || punto === 0x2028 || punto === 0x2029;
+}
+
+/** Los caracteres con los que WhatsApp arma negrita, itálica y monoespacio. */
 const FORMATO = /[*_~`]/g;
 
 /**
@@ -53,7 +62,12 @@ const FORMATO = /[*_~`]/g;
  * anything longer is already an attempt at something.
  */
 export function limpiarTextoDelCodigo(valor: string, maximo = 40): string {
-  const plano = valor.replace(SALTOS, ' ').replace(FORMATO, '').replace(/\s+/g, ' ').trim();
+  const plano = Array.from(valor)
+    .map((c) => (fabricaEstructura(c.codePointAt(0) ?? 0) ? ' ' : c))
+    .join('')
+    .replace(FORMATO, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return plano.length > maximo ? plano.slice(0, maximo) + '…' : plano;
 }
 
