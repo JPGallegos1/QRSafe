@@ -4,7 +4,7 @@ import { decodeImage, verify } from '@qrsafe/verification'
 import { verificarFirma } from './firma.js'
 import { descargarMedia } from './descargar.js'
 import { responderTexto } from './responder.js'
-import { extraerMensaje, remitente, tieneMedia, urlDeMedia, type CuerpoWebhook } from './mensaje.js'
+import { extraerEntrantes, tieneMedia, urlDeMedia, type CuerpoWebhook, type Entrante } from './mensaje.js'
 
 /**
  * El webhook que une el canal con el motor.
@@ -68,18 +68,43 @@ export function manejarWebhook(request: Request, response: Response): void {
   response.status(200).json({ status: 'recibido' })
 
   const cuerpo = request.body as CuerpoWebhook
-  void procesar(cuerpo).catch((err: unknown) => {
+  void procesarCuerpo(cuerpo).catch((err: unknown) => {
     console.error('[webhook] error procesando:', err)
   })
 }
 
-async function procesar(cuerpo: CuerpoWebhook): Promise<void> {
-  const mensaje = extraerMensaje(cuerpo)
-  if (!mensaje) return
+/**
+ * Un cuerpo puede traer un mensaje o un lote entero.
+ *
+ * Con buffering activado Kapso manda `{ batch: true, data: [...] }`. Como el
+ * endpoint ya devolvió 200, un lote ignorado queda dado por entregado y esa
+ * gente nunca recibe respuesta: el fallo es silencioso de los dos lados. Por eso
+ * se procesan todos, y cada uno con su propio catch — que uno falle no puede
+ * dejar sin contestar a los que venían atrás.
+ */
+async function procesarCuerpo(cuerpo: CuerpoWebhook): Promise<void> {
+  const entrantes = extraerEntrantes(cuerpo)
+  if (entrantes.length === 0) {
+    console.warn('[webhook] cuerpo sin mensajes reconocibles')
+    return
+  }
+  if (entrantes.length > 1) {
+    console.log('[webhook] lote de ' + String(entrantes.length) + ' mensajes')
+  }
+
+  for (const entrante of entrantes) {
+    try {
+      await procesar(entrante)
+    } catch (err) {
+      console.error('[webhook] error en un mensaje del lote:', err)
+    }
+  }
+}
+
+async function procesar(entrante: Entrante): Promise<void> {
+  const { mensaje, destino, phoneNumberId } = entrante
   if (mensaje.kapso?.direction === 'outbound') return // no contestarse a sí mismo
 
-  const destino = remitente(mensaje)
-  const phoneNumberId = mensaje.kapso?.phone_number_id
   if (!destino || !phoneNumberId) {
     console.warn('[webhook] mensaje sin remitente o sin phone_number_id')
     return
