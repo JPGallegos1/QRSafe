@@ -1,8 +1,7 @@
 import type { Request, Response } from 'express'
-import { decodeImage } from '@qrsafe/verification'
+import { decodeImage, MENSAJES, STATES, verify } from '@qrsafe/verification'
 
 import { lookupActiveBinding } from '../lookup.js'
-import { analyzePayload } from '../qr.js'
 import { verifySignature } from './signature.js'
 import { downloadMedia } from './download.js'
 import { sendText } from './reply.js'
@@ -43,7 +42,11 @@ function alreadyProcessed(key: string | undefined): boolean {
   return false
 }
 
-const NO_IMAGE = 'Enviame una foto del codigo QR y te dire que informacion puedo verificar. Por ahora solo puedo leer imagenes.'
+/**
+ * Todo texto que ve la persona vive en el módulo de mensajes del motor, en
+ * español, y ningún otro lugar lo escribe. Una respuesta suelta acá se escapa
+ * de esa frontera y de los tests que la defienden.
+ */
 
 export function handleWebhook(request: Request, response: Response): void {
   const signature = verifySignature(
@@ -111,7 +114,7 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
   }
 
   if (!hasMedia(message)) {
-    await reply(phoneNumberId, destination, NO_IMAGE, 'no-image')
+    await reply(phoneNumberId, destination, MENSAJES.sinImagen(), 'no-image')
     return
   }
 
@@ -124,53 +127,49 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
     await reply(
       phoneNumberId,
       destination,
-      'No pude abrir la imagen que enviaste. Intenta enviarla nuevamente.',
+      MENSAJES.noSePudoAbrir(),
       'download-failed'
     )
     return
   }
 
   const reading = await decodeImage(bytes)
-  const analysis = analyzePayload(reading.payload)
+  const verdict = verify(reading.payload)
 
   console.log(
     '[webhook] ' +
-      (analysis.ok ? 'EMV_VALID' : analysis.code) +
+      verdict.state +
       ' · reading=' +
       (reading.via ?? 'unreadable') +
       ' · attempts=' +
       String(reading.attempts)
   )
 
-  if (!analysis.ok) {
-    const details = analysis.details.map((detail) => '\n\n- ' + detail).join('')
-    await reply(phoneNumberId, destination, analysis.message + details, analysis.code)
+  if (verdict.state === STATES.UNREADABLE || verdict.state === STATES.ANOMALY) {
+    await reply(phoneNumberId, destination, verdict.message, verdict.state)
     return
   }
 
   let binding = null
-  try {
-    binding = await lookupActiveBinding(reading.payload as string)
-  } catch (error) {
-    console.error('[webhook] no se pudo consultar el registro:', error)
+  if (reading.payload !== null) {
+    try {
+      binding = await lookupActiveBinding(reading.payload)
+    } catch (error) {
+      console.error('[webhook] no se pudo consultar el registro:', error)
+    }
   }
 
   if (binding) {
     await reply(
       phoneNumberId,
       destination,
-      `Este QR esta registrado en QRSafe y autorizado por ${binding.businessName} para el punto ${binding.paymentPointName}. Verifica el importe y el destinatario antes de pagar.`,
+      MENSAJES.verificadoEnPunto(binding.businessName, binding.paymentPointName),
       'registered'
     )
     return
   }
 
-  await reply(
-    phoneNumberId,
-    destination,
-    'Pude leer un QR de pago valido, pero no figura en el registro de QRSafe. Esto no significa que sea ilegitimo: no puedo confirmarlo ni descartarlo.',
-    'out-of-coverage'
-  )
+  await reply(phoneNumberId, destination, verdict.message, verdict.state)
 }
 
 /**

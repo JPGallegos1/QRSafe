@@ -15,5 +15,10 @@ export type { Verdict, State, Note } from './verify.js';
 export { parse, parseURL, read, splitTLV, crc16, FIELD_NAMES } from './emv.js';
 export type { Reading, EMVReading, URLReading, TLVField, AccountRef, CRCInfo } from './emv.js';
 
-export { DOMAINS, lookup, keyFor, domainOf } from './registry.js';
+export { DOMAINS, lookup, keyFor, domainOf, DEMO_DOMAIN, enableDemoDomain, disableDemoDomain } from './registry.js';
 export type { Domain, Lookup } from './registry.js';
+
+export { MENSAJES, NOTAS } from './messages.js';
+
+export { warrantsContextCheck, withContext } from './context.js';
+export type { ContextAnalyzer, ContextFindings, ContextHints } from './context.js';

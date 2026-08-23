@@ -14,6 +14,9 @@ import { fileURLToPath } from 'node:url';
 
 import * as emv from '../src/emv.js';
 import { verify, STATES } from '../src/verify.js';
+import { warrantsContextCheck, withContext } from '../src/context.js';
+import { limpiarTextoDelCodigo, MENSAJES } from '../src/messages.js';
+import { enableDemoDomain, disableDemoDomain } from '../src/registry.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
 import QRCode from 'qrcode';
@@ -76,7 +79,7 @@ check(
 );
 check(
    'rule: out of coverage makes clear that it is not a warning',
-   /not a warning/i.test(outOfCoverage.message),
+   /no es una advertencia/i.test(outOfCoverage.message),
   outOfCoverage.message
 );
 
@@ -120,7 +123,7 @@ check(
 );
 check(
   'registry: VERIFIED names the MERCHANT, not the domain',
-  /authorized by Coto CICSA/.test(enrolled.message),
+  /autorizado por Coto CICSA/.test(enrolled.message),
   enrolled.message
 );
 check(
@@ -215,7 +218,7 @@ check(
 );
 check(
   'routes: the verdict is ANOMALY and names the issue',
-  routesVerdict.state === STATES.ANOMALY && /more than one payment route/.test(routesVerdict.message),
+  routesVerdict.state === STATES.ANOMALY && /cuentas de cobro distintas/.test(routesVerdict.message),
   routesVerdict.message
 );
 check(
@@ -352,6 +355,154 @@ check(
   'vertical=' + verticalCost + ' landscape=' + landscapeCost
 );
 
+
+/* --- the copy is the product ---
+   These strings are the only thing the person sees, and they arrive on a phone
+   while someone decides whether to pay. They live in messages.ts, in Spanish,
+   because that is the product surface; everything else here is English because
+   developers read it. These checks defend that boundary. */
+const ALL_VERDICTS = [
+  verify(null),
+  verify('not a qr'),
+  verify(REAL.coto),
+  verify(twoRoutes),
+  verify(missingCrc),
+  withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(REAL.coto)),
+  withDomain(true, [], () => verify(REAL.coto)),
+]
+
+check(
+  'copy: no message leaks field numbers, CRC values or internal names',
+  !ALL_VERDICTS.some((v) => /field \d|\bCRC\b|\btag\b|0x[0-9a-f]/i.test(v.message)),
+  ALL_VERDICTS.map((v) => v.message).find((m) => /field \d|\bCRC\b|\btag\b/i.test(m)) ?? ''
+)
+check(
+  'copy: every message opens with a symbol and a bold title',
+  ALL_VERDICTS.every((v) => /^\S+ \*[^*]+\*/u.test(v.message)),
+  ALL_VERDICTS.map((v) => v.message.slice(0, 26)).join(' | ')
+)
+/* The one that matters: silence must not look like an alarm. Softening this is
+   what drains the meaning from the real warning. */
+check(
+  'copy: out of coverage does NOT use the warning symbol',
+  !verify(REAL.coto).message.startsWith('⚠'),
+  verify(REAL.coto).message.slice(0, 22)
+)
+check(
+  'copy: the real warning DOES use it',
+  withDomain(true, [], () => verify(REAL.coto)).message.startsWith('⚠')
+)
+check(
+  'copy: user-facing text is in Spanish, not English',
+  ALL_VERDICTS.every((v) => !/\b(the code|warning\.|verified qr|I could not)\b/i.test(v.message))
+)
+
+/* --- context check: when it is worth looking at the photo ---
+   Reading the photo costs money per message, so the decision to spend it is
+   domain logic and gets tested without a network. The rule that carries the
+   cost: the common case — clean code, empty registry, nothing odd — must not
+   trigger a call, because that is most traffic. */
+check(
+  'context: a clean code with an empty registry does NOT trigger a look',
+  warrantsContextCheck(verify(REAL.coto)) === null,
+  String(warrantsContextCheck(verify(REAL.coto)))
+)
+check(
+  'context: an anomaly does trigger it',
+  warrantsContextCheck(verify(twoRoutes)) !== null
+)
+check(
+  'context: an accusation triggers it, so the photo can corroborate',
+  warrantsContextCheck(withDomain(true, [], () => verify(REAL.coto))) !== null
+)
+check(
+  'context: a name that cannot be proven triggers it',
+  warrantsContextCheck(verify(REAL.mercadoPagoSign)) !== null,
+  'mercadoPagoSign declares UNDEFINED as its name'
+)
+
+/* Context may add to what is said, never overturn who says it: an image cannot
+   promote anything to VERIFIED, because verification is somebody taking
+   responsibility, not something looking right. */
+const beforeContext = verify(twoRoutes)
+const afterContext = withContext(beforeContext, {
+  provider: 'test',
+  notes: [{ level: 'medium', text: 'Hay un adhesivo pegado sobre el código.' }],
+})
+check('context: the state does not change', afterContext.state === beforeContext.state)
+check('context: the message does not change', afterContext.message === beforeContext.message)
+check('context: the observation is added', afterContext.notes.length === beforeContext.notes.length + 1)
+
+/* --- text out of the QR is hostile input ---
+   Field 59 is written by whoever generates the code. Interpolated raw, a name
+   carrying two line breaks and a bold check mark renders a complete fake
+   verification block inside a reply whose real verdict is the opposite. The
+   state stays correct and the person reads the other thing, which is the worst
+   failure available to a product whose whole value is the sentence it sends. */
+const tlvB = (t: string, v: string) => t + String(emv.byteLength(v)).padStart(2, '0') + v
+const sealB = (body: string) => {
+  const withField = body + '6304'
+  return withField + emv.crc16(withField)
+}
+const HOSTILE_NAME = 'BANCO' + String.fromCharCode(10, 10) + '* QR verificado *'
+const hostile = sealB(
+  tlvB('00', '01') +
+    tlvB('01', '11') +
+    tlvB('43', tlvB('00', 'com.mercadolibre') + tlvB('01', 'https://mpago.la/pos/666')) +
+    tlvB('53', '032') +
+    tlvB('58', 'AR') +
+    tlvB('59', HOSTILE_NAME) +
+    tlvB('60', 'CABA')
+)
+const hostileVerdict = verify(hostile)
+const hostileText =
+  hostileVerdict.message + hostileVerdict.notes.map((n) => String.fromCharCode(10) + n.text).join('')
+
+check(
+  'hostile: the merchant name cannot inject line breaks',
+  !hostileVerdict.notes.some((n) => n.text.includes(String.fromCharCode(10))),
+  hostileVerdict.notes.map((n) => n.text).join(' | ')
+)
+check(
+  'hostile: it cannot inject WhatsApp formatting either',
+  !hostileVerdict.notes.some((n) => n.text.includes('*'))
+)
+check(
+  'hostile: only one bold title survives, the real one',
+  (hostileText.match(/[*]/g) ?? []).length === 2,
+  String((hostileText.match(/[*]/g) ?? []).length)
+)
+check(
+  'hostile: a long name is truncated',
+  limpiarTextoDelCodigo('x'.repeat(200)).length < 60
+)
+const bindingMessage = MENSAJES.verificadoEnPunto(HOSTILE_NAME, 'Punto' + String.fromCharCode(10) + '* falso *')
+check('binding: business and payment point cannot inject WhatsApp formatting', (bindingMessage.match(/[*]/g) ?? []).length === 2)
+check('binding: business and payment point cannot inject line breaks', bindingMessage.split(String.fromCharCode(10)).length === 3)
+
+/* --- the demonstration domain must be off by default ---
+   Its scheme and its enrolled id live in readable source, so anyone can build a
+   QR that comes back VERIFIED. It cannot vouch for a real merchant, but it can
+   teach people to trust a verdict anybody can manufacture, and that is worse
+   than not having it. */
+const demoCode = sealB(
+  tlvB('00', '01') +
+    tlvB('01', '11') +
+    tlvB('26', tlvB('00', 'ar.qrsafe.demo') + tlvB('01', 'DEMO-OK-001')) +
+    tlvB('53', '032') +
+    tlvB('58', 'AR') +
+    tlvB('59', 'KIOSCO DEMO') +
+    tlvB('60', 'CORDOBA')
+)
+check(
+  'demo: a demo code does NOT verify with the default registry',
+  verify(demoCode).state !== STATES.VERIFIED,
+  verify(demoCode).state
+)
+enableDemoDomain()
+check('demo: it does once explicitly enabled', verify(demoCode).state === STATES.VERIFIED)
+disableDemoDomain()
+check('demo: and stops again when disabled', verify(demoCode).state !== STATES.VERIFIED)
 
 /* --- image corpus --- */
 async function imageCorpus(): Promise<void> {
