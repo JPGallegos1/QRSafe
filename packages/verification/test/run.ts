@@ -17,7 +17,7 @@ import { verify, STATES } from '../src/verify.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
 import QRCode from 'qrcode';
-import { onCanvas, rotate, blur } from '../bench/degrade.js';
+import { onCanvas, rotate, blur, tilt } from '../bench/degrade.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -323,6 +323,12 @@ check('piso: lee con 20 grados de rotación', await leeIgual(qrGirado));
 
 const qrBorroso = blur(await onCanvas(REAL.coto, PISO_CANVAS, 420), 3);
 check('piso: lee con 3px de desenfoque', await leeIgual(qrBorroso));
+
+/* La perspectiva era el eje más flojo: leía hasta 10% antes de la
+   contra-inclinación y hasta 40% después. Este piso protege esa ganancia, que
+   es la que cubre el caso real de un cartel fotografiado de costado. */
+const qrInclinado = tilt(await onCanvas(REAL.coto, PISO_CANVAS, 420), 0.25);
+check('piso: lee con 25% de inclinación en perspectiva', await leeIgual(qrInclinado));
 
 
 /* --- corpus --- */

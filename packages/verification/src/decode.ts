@@ -197,6 +197,15 @@ export async function decodeImage(source: string | Buffer): Promise<DecodeResult
     if (payload !== null) return { payload, via: name, dims, attempts, error: null };
   }
 
+  // A tilted code is the common real case and the measured weak point, so the
+  // counter-tilt sweep runs before the tile sweep: it is cheaper and it targets
+  // a failure the ladder above cannot touch.
+  const deskewed = scanDeskew(image);
+  attempts += deskewed.attempts;
+  if (deskewed.payload !== null) {
+    return { payload: deskewed.payload, via: deskewed.via, dims, attempts, error: null };
+  }
+
   // Whole-frame scanning fails when the code occupies a small part of a wide
   // photo — a sign shot from two metres away. Sweeping overlapping tiles gives
   // the detector a frame where the code is large enough to lock onto. This is
@@ -214,6 +223,81 @@ interface TileResult {
   payload: string | null;
   via: string | null;
   attempts: number;
+}
+
+
+/**
+ * Applies a perspective counter-tilt.
+ *
+ * `h` squeezes one vertical edge toward the centre, `v` one horizontal edge.
+ * Negative values squeeze the opposite side. Implemented as an inverse map —
+ * for every destination pixel we ask which source pixel it came from — because
+ * the forward map leaves holes.
+ */
+function warp(image: JimpImage, h: number, v: number): JimpImage {
+  const src = image;
+  const w = src.bitmap.width;
+  const ht = src.bitmap.height;
+  const out = new Jimp(w, ht, 0xffffffff);
+
+  for (let x = 0; x < w; x++) {
+    const hs = 1 - (h * x) / Math.max(1, w - 1);
+    if (hs <= 0.05) continue;
+    const topOffset = ((1 - hs) * ht) / 2;
+
+    for (let y = 0; y < ht; y++) {
+      const vs = 1 - (v * y) / Math.max(1, ht - 1);
+      if (vs <= 0.05) continue;
+      const leftOffset = ((1 - vs) * w) / 2;
+
+      const sy = (y - topOffset) / hs;
+      const sx = (x - leftOffset) / vs;
+      if (sy < 0 || sy >= ht || sx < 0 || sx >= w) continue;
+      out.setPixelColor(src.getPixelColor(Math.floor(sx), Math.floor(sy)), x, y);
+    }
+  }
+  return out;
+}
+
+/**
+ * Sweeps perspective counter-tilts.
+ *
+ * A sign is photographed from wherever the person is standing — beside a
+ * parking meter, below a wall-mounted code — so the code arrives as a trapezoid.
+ * Measurement showed this is by far the weakest axis: the decoder tolerates 45°
+ * of rotation but gives up at 20% of tilt, which is the distortion that
+ * actually happens.
+ *
+ * This is a search, not a solve: rather than locating the finder patterns and
+ * computing the true homography, it tries a handful of counter-tilts in both
+ * directions and on both axes. Cheap, and its value is measurable with
+ * `npm run bench`.
+ */
+function scanDeskew(image: JimpImage): { payload: string | null; via: string | null; attempts: number } {
+  // Work small: the warp is a per-pixel loop and the decoder does not need
+  // the full resolution to lock onto a code this size.
+  const working = image.bitmap.width > 1000 ? image.clone().scaleToFit(1000, 1000) : image.clone();
+  const grey = working.greyscale().normalize();
+
+  const strengths = [0.2, 0.35, 0.5, -0.2, -0.35, -0.5];
+  let attempts = 0;
+
+  for (const s of strengths) {
+    for (const axis of ['h', 'v'] as const) {
+      attempts++;
+      let candidate: JimpImage;
+      try {
+        candidate = axis === 'h' ? warp(grey, s, 0) : warp(grey, 0, s);
+      } catch {
+        continue;
+      }
+      const payload = scan(candidate);
+      if (payload !== null) {
+        return { payload, via: 'contra-inclinación ' + axis + '=' + s, attempts };
+      }
+    }
+  }
+  return { payload: null, via: null, attempts };
 }
 
 /** Sweeps overlapping crops at a few grid sizes, upscaling each tile. */
