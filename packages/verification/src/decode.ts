@@ -30,7 +30,8 @@ type JsQRFn = (
 ) => QRResult | null;
 const jsQR = jsQRImport as unknown as JsQRFn;
 
-const MAX_SIDE = 2600; // working size once the image is safely decoded
+const MAX_SIDE = 1500; // working size once the image is safely decoded
+const DESKEW_SIDE = 800; // the counter-tilt search does not need more than this
 const MAX_BYTES = 20 * 1024 * 1024; // WhatsApp caps images well below this
 const MAX_PIXELS = 50_000_000; // ~50 MP: above any phone camera, below a bomb
 const HEADER_BYTES = 65_536; // enough to reach the SOF marker of a normal JPEG
@@ -274,9 +275,13 @@ function warp(image: JimpImage, h: number, v: number): JimpImage {
  * `npm run bench`.
  */
 function scanDeskew(image: JimpImage): { payload: string | null; via: string | null; attempts: number } {
-  // Work small: the warp is a per-pixel loop and the decoder does not need
-  // the full resolution to lock onto a code this size.
-  const working = image.bitmap.width > 1000 ? image.clone().scaleToFit(1000, 1000) : image.clone();
+  // Work small. The warp is a per-pixel loop run twelve times, so the cost is
+  // driven by area, not by width: checking only `width` let a 1000x2600 photo
+  // through at full resolution and cost 27 seconds and 636 MB, while the same
+  // pixels in landscape cost far less. Orientation must not decide the budget,
+  // so the cap is on the longest side.
+  const longest = Math.max(image.bitmap.width, image.bitmap.height);
+  const working = longest > DESKEW_SIDE ? image.clone().scaleToFit(DESKEW_SIDE, DESKEW_SIDE) : image.clone();
   const grey = working.greyscale().normalize();
 
   const strengths = [0.2, 0.35, 0.5, -0.2, -0.35, -0.5];

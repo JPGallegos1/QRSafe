@@ -64,8 +64,18 @@ export async function jpeg(image: Image, quality: number): Promise<Buffer> {
  * Implemented as an inverse map — for every destination pixel we ask which
  * source pixel it came from — because the forward map leaves holes.
  */
-export function tilt(image: Image, strength: number): Image {
-  if (strength <= 0) return image.clone();
+export function tilt(image: Image, strength: number, axis: 'h' | 'v' = 'h'): Image {
+  if (strength === 0) return image.clone();
+
+  // The warp below only squeezes one side. The other three directions are the
+  // same transform on a flipped image, so they are covered by flipping back.
+  if (axis === 'v') {
+    return tilt(image.clone().rotate(90, false), Math.abs(strength) * Math.sign(strength))
+      .rotate(-90, false);
+  }
+  if (strength < 0) {
+    return tilt(image.clone().flip(true, false), -strength).flip(true, false);
+  }
   const src = image.clone();
   const w = src.bitmap.width;
   const h = src.bitmap.height;

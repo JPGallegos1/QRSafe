@@ -17,6 +17,7 @@ import { verify, STATES } from '../src/verify.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
 import QRCode from 'qrcode';
+import Jimp from 'jimp';
 import { onCanvas, rotate, blur, tilt } from '../bench/degrade.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -327,8 +328,29 @@ check('piso: lee con 3px de desenfoque', await leeIgual(qrBorroso));
 /* La perspectiva era el eje más flojo: leía hasta 10% antes de la
    contra-inclinación y hasta 40% después. Este piso protege esa ganancia, que
    es la que cubre el caso real de un cartel fotografiado de costado. */
-const qrInclinado = tilt(await onCanvas(REAL.coto, PISO_CANVAS, 420), 0.25);
-check('piso: lee con 25% de inclinación en perspectiva', await leeIgual(qrInclinado));
+const base420 = await onCanvas(REAL.coto, PISO_CANVAS, 420);
+for (const [nombre, img] of [
+  ['horizontal +', tilt(base420, 0.25, 'h')],
+  ['horizontal -', tilt(base420, -0.25, 'h')],
+  ['vertical +', tilt(base420, 0.25, 'v')],
+  ['vertical -', tilt(base420, -0.25, 'v')],
+] as const) {
+  check('piso: lee con 25% de inclinación ' + nombre, await leeIgual(img));
+}
+
+/* La orientación no puede decidir cuánto trabajo se hace. Un 1000x2600 corría
+   los doce warps a resolución completa porque el tope miraba sólo el ancho:
+   27 segundos y 636 MB, contra bastante menos con los mismos píxeles apaisados.
+   Se compara la cantidad de intentos, que es determinista, y no el tiempo. */
+const vertical = await new Jimp(700, 1800, 0xf0f0f0ff).getBufferAsync('image/png');
+const apaisado = await new Jimp(1800, 700, 0xf0f0f0ff).getBufferAsync('image/png');
+const costoVertical = (await decodeImage(vertical)).attempts;
+const costoApaisado = (await decodeImage(apaisado)).attempts;
+check(
+  'costo: la orientación no cambia el trabajo del peor caso',
+  costoVertical === costoApaisado,
+  'vertical=' + costoVertical + ' apaisado=' + costoApaisado
+);
 
 
 /* --- corpus --- */
