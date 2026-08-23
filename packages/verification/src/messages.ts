@@ -32,6 +32,31 @@
  * separately.
  */
 
+/** Line break and the WhatsApp formatting characters, by code point. */
+const SALTOS = new RegExp("[\u0000-\u001F\u007F-\u009F\u2028\u2029]", "g");
+const FORMATO = /[*_~`]/g;
+
+/**
+ * Cleans any text that came out of the QR before it enters a message.
+ *
+ * THIS IS A SECURITY BOUNDARY, not tidiness. Field 59 is free text that the
+ * person generating the code writes, which means an attacker writes it. A
+ * merchant name carrying two line breaks and a bold check mark renders a
+ * complete, convincing verification block inside a reply whose real verdict is
+ * "I have no record of this merchant". The state stays correct and the person
+ * reads the opposite — the worst possible failure for a product whose entire
+ * value is the sentence it sends.
+ *
+ * So: no line breaks, because they build blocks. No WhatsApp formatting
+ * characters, because they build emphasis. No control characters. And a hard
+ * length cap, because EMVCo caps this field at 25 characters anyway and
+ * anything longer is already an attempt at something.
+ */
+export function limpiarTextoDelCodigo(valor: string, maximo = 40): string {
+  const plano = valor.replace(SALTOS, ' ').replace(FORMATO, '').replace(/\s+/g, ' ').trim();
+  return plano.length > maximo ? plano.slice(0, maximo) + '…' : plano;
+}
+
 const SIMBOLO = {
   verificado: '✅',
   advertencia: '⚠️',
@@ -64,14 +89,25 @@ export const MENSAJES = {
   anomalia: (motivo: string): string =>
     componer(SIMBOLO.anomalia, 'Este código tiene algo raro', motivo),
 
+  /**
+   * El emisor sale del registro, no del código, así que es texto de confianza.
+   * Se limpia igual: si algún día una vía de alta deja entrar un nombre sin
+   * revisar, esto ya está puesto.
+   */
   verificado: (emisor: string): string =>
-    componer(SIMBOLO.verificado, 'QR verificado', 'Este código está autorizado por ' + emisor + '.'),
+    componer(
+      SIMBOLO.verificado,
+      'QR verificado',
+      'Este código está autorizado por ' + limpiarTextoDelCodigo(emisor, 60) + '.'
+    ),
 
   noAutorizado: (emisor: string): string =>
     componer(
       SIMBOLO.advertencia,
       'Advertencia',
-      'Este QR no está registrado como un medio de cobro autorizado por ' + emisor + '.'
+      'Este QR no está registrado como un medio de cobro autorizado por ' +
+        limpiarTextoDelCodigo(emisor, 60) +
+        '.'
     ),
 
   fueraDeCobertura: (): string =>
@@ -79,6 +115,21 @@ export const MENSAJES = {
       SIMBOLO.sinDatos,
       'Todavía no tengo registro de este comercio',
       'No puedo confirmar ni descartar nada. Esto no es una advertencia.'
+    ),
+
+  /** Llegó algo que no es una imagen. */
+  sinImagen: (): string =>
+    componer(
+      SIMBOLO.ilegible,
+      'Mandame una foto del código',
+      'Por ahora sólo puedo leer imágenes. Sacale una foto al QR y mandámela.'
+    ),
+
+  noSePudoAbrir: (): string =>
+    componer(
+      SIMBOLO.ilegible,
+      'No pude abrir la imagen',
+      'Algo falló al descargarla. Probá mandarla de nuevo.'
     ),
 } as const;
 
@@ -99,9 +150,10 @@ export const NOTAS = {
 
   sinNombre: (): string => 'El código no dice a nombre de qué comercio cobra.',
 
+  /** El nombre viene del código: entrada hostil. Ver `limpiarTextoDelCodigo`. */
   nombreLibre: (nombre: string): string =>
     'Dice cobrar a nombre de «' +
-    nombre +
+    limpiarTextoDelCodigo(nombre) +
     '», pero ese nombre lo escribe quien genera el código: no prueba quién recibe el dinero.',
 
   otroPais: (): string => 'Está emitido para otro país, no para Argentina.',

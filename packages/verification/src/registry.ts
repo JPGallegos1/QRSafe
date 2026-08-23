@@ -74,32 +74,43 @@ export const DOMAINS: Domain[] = [
     matches: { schemes: ['com.mercadolibre'], hosts: ['mpago.la'] },
     authorized: new Map<string, string>(),
   },
-  {
-    /**
-     * Demonstration domain, and the only CLOSED one.
-     *
-     * VERIFIED and UNAUTHORIZED depend on the registry, not on the code, so with
-     * an empty registry no QR on earth can produce them — which leaves the two
-     * states that matter most impossible to try end to end. This domain makes
-     * them reachable.
-     *
-     * It is safe to ship because it matches a scheme no real code carries:
-     * `ar.qrsafe.demo` exists only in codes we generate ourselves. It cannot
-     * collide with a real merchant, and it cannot vouch for one either — the
-     * only thing it can ever say is that a demo code belongs to the demo.
-     *
-     * `scripts/qr-tests/generate.mts` builds the two codes: the enrolled one
-     * comes back VERIFIED, and a second one in the same closed domain comes
-     * back UNAUTHORIZED.
-     */
-    id: 'demo',
-    label: 'QRSafe demonstration codes',
-    issuer: 'QRSafe (demostración)',
-    closed: true,
-    matches: { schemes: ['ar.qrsafe.demo'], hosts: [] },
-    authorized: new Map<string, string>([['DEMO-OK-001', 'Kiosco de demostración']]),
-  },
 ];
+
+/**
+ * The demonstration domain — deliberately NOT in DOMAINS.
+ *
+ * VERIFIED and UNAUTHORIZED depend on the registry, not on the code, so with an
+ * empty registry no QR can produce them and the two states that carry the whole
+ * product cannot be tried end to end. This domain exists to make them
+ * reachable, and it must never be reachable in production.
+ *
+ * WHY IT CANNOT SHIP ENABLED. Its scheme and its enrolled identifier are in the
+ * source, and the source is readable. Anyone can generate a QR that comes back
+ * VERIFIED. It does not matter that it cannot vouch for a real merchant: it
+ * teaches people to trust a verdict that anybody can manufacture, which is
+ * worse than not having the demo at all. A verdict nobody can forge is the only
+ * kind worth showing.
+ *
+ * So it is opt-in, per process, and the caller has to say so out loud.
+ */
+export const DEMO_DOMAIN: Domain = {
+  id: 'demo',
+  label: 'QRSafe demonstration codes',
+  issuer: 'QRSafe (demostración)',
+  closed: true,
+  matches: { schemes: ['ar.qrsafe.demo'], hosts: [] },
+  authorized: new Map<string, string>([['DEMO-OK-001', 'Kiosco de demostración']]),
+};
+
+/** Turns the demonstration domain on for this process. Never call it in production. */
+export function enableDemoDomain(): void {
+  if (!DOMAINS.some((d) => d.id === DEMO_DOMAIN.id)) DOMAINS.push(DEMO_DOMAIN);
+}
+
+export function disableDemoDomain(): void {
+  const i = DOMAINS.findIndex((d) => d.id === DEMO_DOMAIN.id);
+  if (i >= 0) DOMAINS.splice(i, 1);
+}
 
 /**
  * Normalises an account reference into the key the registry is indexed by.
