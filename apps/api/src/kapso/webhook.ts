@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express'
-import { decodeImage, verify } from '@qrsafe/verification'
+import { decodeImage, verify, MENSAJES } from '@qrsafe/verification'
 
 import { verifySignature } from './signature.js'
 import { downloadMedia } from './download.js'
@@ -41,7 +41,11 @@ function alreadyProcessed(key: string | undefined): boolean {
   return false
 }
 
-const NO_IMAGE = 'Send me a photo of the QR code and I will tell you what I can verify. I can only read images for now.'
+/**
+ * Todo texto que ve la persona vive en el módulo de mensajes del motor, en
+ * español, y ningún otro lugar lo escribe. Una respuesta suelta acá se escapa
+ * de esa frontera y de los tests que la defienden.
+ */
 
 export function handleWebhook(request: Request, response: Response): void {
   const signature = verifySignature(
@@ -107,7 +111,7 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
   }
 
   if (!hasMedia(message)) {
-    await reply(phoneNumberId, destination, NO_IMAGE, 'no-image')
+    await reply(phoneNumberId, destination, MENSAJES.sinImagen(), 'no-image')
     return
   }
 
@@ -120,7 +124,7 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
     await reply(
       phoneNumberId,
       destination,
-      'I could not open the image you sent. Please try sending it again.',
+      MENSAJES.noSePudoAbrir(),
       'download-failed'
     )
     return

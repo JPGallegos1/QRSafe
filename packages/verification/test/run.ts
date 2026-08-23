@@ -15,6 +15,8 @@ import { fileURLToPath } from 'node:url';
 import * as emv from '../src/emv.js';
 import { verify, STATES } from '../src/verify.js';
 import { warrantsContextCheck, withContext } from '../src/context.js';
+import { limpiarTextoDelCodigo } from '../src/messages.js';
+import { enableDemoDomain, disableDemoDomain } from '../src/registry.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
 import QRCode from 'qrcode';
@@ -371,8 +373,8 @@ const ALL_VERDICTS = [
 
 check(
   'copy: no message leaks field numbers, CRC values or internal names',
-  !ALL_VERDICTS.some((v) => /field \d|CRC|tag|0x[0-9a-f]/i.test(v.message)),
-  ALL_VERDICTS.map((v) => v.message).find((m) => /field \d|CRC|tag/i.test(m)) ?? ''
+  !ALL_VERDICTS.some((v) => /field \d|\bCRC\b|\btag\b|0x[0-9a-f]/i.test(v.message)),
+  ALL_VERDICTS.map((v) => v.message).find((m) => /field \d|\bCRC\b|\btag\b/i.test(m)) ?? ''
 )
 check(
   'copy: every message opens with a symbol and a bold title',
@@ -392,7 +394,7 @@ check(
 )
 check(
   'copy: user-facing text is in Spanish, not English',
-  ALL_VERDICTS.every((v) => !/(the code|warning\.|verified qr|I could not)/i.test(v.message))
+  ALL_VERDICTS.every((v) => !/\b(the code|warning\.|verified qr|I could not)\b/i.test(v.message))
 )
 
 /* --- context check: when it is worth looking at the photo ---
@@ -430,6 +432,74 @@ const afterContext = withContext(beforeContext, {
 check('context: the state does not change', afterContext.state === beforeContext.state)
 check('context: the message does not change', afterContext.message === beforeContext.message)
 check('context: the observation is added', afterContext.notes.length === beforeContext.notes.length + 1)
+
+/* --- text out of the QR is hostile input ---
+   Field 59 is written by whoever generates the code. Interpolated raw, a name
+   carrying two line breaks and a bold check mark renders a complete fake
+   verification block inside a reply whose real verdict is the opposite. The
+   state stays correct and the person reads the other thing, which is the worst
+   failure available to a product whose whole value is the sentence it sends. */
+const tlvB = (t: string, v: string) => t + String(emv.byteLength(v)).padStart(2, '0') + v
+const sealB = (body: string) => {
+  const withField = body + '6304'
+  return withField + emv.crc16(withField)
+}
+const HOSTILE_NAME = 'BANCO' + String.fromCharCode(10, 10) + '* QR verificado *'
+const hostile = sealB(
+  tlvB('00', '01') +
+    tlvB('01', '11') +
+    tlvB('43', tlvB('00', 'com.mercadolibre') + tlvB('01', 'https://mpago.la/pos/666')) +
+    tlvB('53', '032') +
+    tlvB('58', 'AR') +
+    tlvB('59', HOSTILE_NAME) +
+    tlvB('60', 'CABA')
+)
+const hostileVerdict = verify(hostile)
+const hostileText =
+  hostileVerdict.message + hostileVerdict.notes.map((n) => String.fromCharCode(10) + n.text).join('')
+
+check(
+  'hostile: the merchant name cannot inject line breaks',
+  !hostileVerdict.notes.some((n) => n.text.includes(String.fromCharCode(10))),
+  hostileVerdict.notes.map((n) => n.text).join(' | ')
+)
+check(
+  'hostile: it cannot inject WhatsApp formatting either',
+  !hostileVerdict.notes.some((n) => n.text.includes('*'))
+)
+check(
+  'hostile: only one bold title survives, the real one',
+  (hostileText.match(/[*]/g) ?? []).length === 2,
+  String((hostileText.match(/[*]/g) ?? []).length)
+)
+check(
+  'hostile: a long name is truncated',
+  limpiarTextoDelCodigo('x'.repeat(200)).length < 60
+)
+
+/* --- the demonstration domain must be off by default ---
+   Its scheme and its enrolled id live in readable source, so anyone can build a
+   QR that comes back VERIFIED. It cannot vouch for a real merchant, but it can
+   teach people to trust a verdict anybody can manufacture, and that is worse
+   than not having it. */
+const demoCode = sealB(
+  tlvB('00', '01') +
+    tlvB('01', '11') +
+    tlvB('26', tlvB('00', 'ar.qrsafe.demo') + tlvB('01', 'DEMO-OK-001')) +
+    tlvB('53', '032') +
+    tlvB('58', 'AR') +
+    tlvB('59', 'KIOSCO DEMO') +
+    tlvB('60', 'CORDOBA')
+)
+check(
+  'demo: a demo code does NOT verify with the default registry',
+  verify(demoCode).state !== STATES.VERIFIED,
+  verify(demoCode).state
+)
+enableDemoDomain()
+check('demo: it does once explicitly enabled', verify(demoCode).state === STATES.VERIFIED)
+disableDemoDomain()
+check('demo: and stops again when disabled', verify(demoCode).state !== STATES.VERIFIED)
 
 /* --- image corpus --- */
 async function imageCorpus(): Promise<void> {
