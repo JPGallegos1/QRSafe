@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "npm --workspace @qrsafe/verification run build && npm --workspace @qrsafe/api run build"
+  },
+  "deploy": {
+    "startCommand": "npm --workspace @qrsafe/api run start",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

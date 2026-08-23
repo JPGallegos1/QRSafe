@@ -115,6 +115,17 @@ export const MENSAJES = {
       'Este código está autorizado por ' + limpiarTextoDelCodigo(emisor, 60) + '.'
     ),
 
+  verificadoEnPunto: (emisor: string, punto: string): string =>
+    componer(
+      SIMBOLO.verificado,
+      'QR verificado',
+      'Este código está autorizado por ' +
+        limpiarTextoDelCodigo(emisor, 60) +
+        ' para ' +
+        limpiarTextoDelCodigo(punto, 80) +
+        '.'
+    ),
+
   noAutorizado: (emisor: string): string =>
     componer(
       SIMBOLO.advertencia,

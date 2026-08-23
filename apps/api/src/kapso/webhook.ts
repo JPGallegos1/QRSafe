@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
-import { decodeImage, verify, MENSAJES } from '@qrsafe/verification'
+import { decodeImage, MENSAJES, STATES, verify } from '@qrsafe/verification'
 
+import { lookupActiveBinding } from '../lookup.js'
 import { verifySignature } from './signature.js'
 import { downloadMedia } from './download.js'
 import { sendText } from './reply.js'
@@ -56,7 +57,9 @@ export function handleWebhook(request: Request, response: Response): void {
 
   if (!signature.valid) {
     console.warn('[webhook] rejected signature: ' + String(signature.reason))
-    response.status(401).json({ error: 'invalid_signature' })
+    response.status(401).json({
+      error: { code: 'firma_invalida', message: 'La firma del webhook no es valida.' },
+    })
     return
   }
 
@@ -133,11 +136,6 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
   const reading = await decodeImage(bytes)
   const verdict = verify(reading.payload)
 
-  const observations = verdict.notes
-    .filter((note) => note.level === 'medium')
-    .map((n) => '\n\n• ' + n.text)
-    .join('')
-
   console.log(
     '[webhook] ' +
       verdict.state +
@@ -147,7 +145,31 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
       String(reading.attempts)
   )
 
-  await reply(phoneNumberId, destination, verdict.message + observations, verdict.state)
+  if (verdict.state === STATES.UNREADABLE || verdict.state === STATES.ANOMALY) {
+    await reply(phoneNumberId, destination, verdict.message, verdict.state)
+    return
+  }
+
+  let binding = null
+  if (reading.payload !== null) {
+    try {
+      binding = await lookupActiveBinding(reading.payload)
+    } catch (error) {
+      console.error('[webhook] no se pudo consultar el registro:', error)
+    }
+  }
+
+  if (binding) {
+    await reply(
+      phoneNumberId,
+      destination,
+      MENSAJES.verificadoEnPunto(binding.businessName, binding.paymentPointName),
+      'registered'
+    )
+    return
+  }
+
+  await reply(phoneNumberId, destination, verdict.message, verdict.state)
 }
 
 /**

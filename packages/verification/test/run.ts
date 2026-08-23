@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import * as emv from '../src/emv.js';
 import { verify, STATES } from '../src/verify.js';
 import { warrantsContextCheck, withContext } from '../src/context.js';
-import { limpiarTextoDelCodigo } from '../src/messages.js';
+import { limpiarTextoDelCodigo, MENSAJES } from '../src/messages.js';
 import { enableDemoDomain, disableDemoDomain } from '../src/registry.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
@@ -476,6 +476,9 @@ check(
   'hostile: a long name is truncated',
   limpiarTextoDelCodigo('x'.repeat(200)).length < 60
 )
+const bindingMessage = MENSAJES.verificadoEnPunto(HOSTILE_NAME, 'Punto' + String.fromCharCode(10) + '* falso *')
+check('binding: business and payment point cannot inject WhatsApp formatting', (bindingMessage.match(/[*]/g) ?? []).length === 2)
+check('binding: business and payment point cannot inject line breaks', bindingMessage.split(String.fromCharCode(10)).length === 3)
 
 /* --- the demonstration domain must be off by default ---
    Its scheme and its enrolled id live in readable source, so anyone can build a
