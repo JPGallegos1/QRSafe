@@ -1,9 +1,9 @@
 /**
- * @qrsafe/verification — motor de verificación de QR por pertenencia.
+ * @qrsafe/verification — QR identity-binding verification engine.
  *
- * Dominio puro: sin servidor, sin canal, sin usuarios. Recibe una imagen o un
- * payload y devuelve un veredicto. La compuerta de identidad y suscripción
- * definida en docs/flujo-b2c.md vive en la app que consume este paquete.
+ * Pure domain layer: no server, channel, or users. It accepts an image or
+ * payload and returns a verdict. The identity and subscription gate defined in
+ * docs/b2c-flow.md lives in the application that consumes this package.
  */
 
 export { decodeImage } from './decode.js';

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI: qrsafe-verify <imagen|payload> [...]
+ * CLI: qrsafe-verify <image|payload> [...]
  *
  * Development tool. Takes image paths or a raw payload and prints the verdict
  * the bot would reply with, plus the evidence behind it.
@@ -12,11 +12,11 @@ import { decodeImage } from './decode.js';
 import { verify, STATES, type Verdict } from './verify.js';
 
 const LABEL: Record<string, string> = {
-  [STATES.VERIFICADO]: 'VERIFICADO',
-  [STATES.NO_AUTORIZADO]: 'NO AUTORIZADO',
-  [STATES.FUERA_DE_COBERTURA]: 'FUERA DE COBERTURA',
-  [STATES.ANOMALIA]: 'ANOMALÍA',
-  [STATES.ILEGIBLE]: 'ILEGIBLE',
+  [STATES.VERIFIED]: 'VERIFIED',
+  [STATES.UNAUTHORIZED]: 'UNAUTHORIZED',
+  [STATES.OUT_OF_COVERAGE]: 'OUT OF COVERAGE',
+  [STATES.ANOMALY]: 'ANOMALY',
+  [STATES.UNREADABLE]: 'UNREADABLE',
 };
 
 function isFile(arg: string): boolean {
@@ -29,14 +29,14 @@ function isFile(arg: string): boolean {
 
 /**
  * Whether the argument was meant as a file. A mistyped path must not be read as
- * a QR payload: it would come back FUERA_DE_COBERTURA and exit 0, so a typo
+  * a QR payload: it would come back OUT_OF_COVERAGE and exit 0, so a typo
  * would look like a successful run that verified nothing.
  */
 function looksLikePath(arg: string): boolean {
-  // Sólo un prefijo de ruta o una extensión de imagen cuentan. Buscar una barra
-  // suelta no sirve: un payload EMV lleva URLs adentro y quedaría tomado por ruta.
-  const prefijo = /^([.]{1,2}[/\\]|[/\\]|[A-Za-z]:[/\\])/;
-  return prefijo.test(arg) || /[.](jpe?g|png|bmp|webp|gif)$/i.test(arg);
+  // Only a path prefix or image extension qualifies. A lone slash is not enough:
+  // an EMV payload can contain URLs and would otherwise be treated as a path.
+  const prefix = /^([.]{1,2}[/\\]|[/\\]|[A-Za-z]:[/\\])/;
+  return prefix.test(arg) || /[.](jpe?g|png|bmp|webp|gif)$/i.test(arg);
 }
 
 interface Source {
@@ -46,11 +46,11 @@ interface Source {
 }
 
 async function sourceFor(arg: string): Promise<Source> {
-  if (!isFile(arg)) return { payload: arg, label: 'texto', error: null };
+  if (!isFile(arg)) return { payload: arg, label: 'text', error: null };
   const res = await decodeImage(arg);
   return {
     payload: res.payload,
-    label: res.via !== null ? 'imagen · ' + res.via + ' · ' + res.dims : 'imagen · ilegible',
+    label: res.via !== null ? 'image · ' + res.via + ' · ' + res.dims : 'image · unreadable',
     error: res.error,
   };
 }
@@ -58,27 +58,27 @@ async function sourceFor(arg: string): Promise<Source> {
 function print(arg: string, label: string, result: Verdict): void {
   console.log('');
   console.log('── ' + path.basename(arg));
-  console.log('   lectura   : ' + label);
-  console.log('   estado    : ' + (LABEL[result.state] ?? result.state));
-  console.log('   respuesta : ' + result.message);
+  console.log('   reading  : ' + label);
+  console.log('   state    : ' + (LABEL[result.state] ?? result.state));
+  console.log('   response : ' + result.message);
 
   const reading = result.reading;
   if (reading?.kind === 'emv') {
-    console.log('   nombre declarado : ' + (reading.declaredName ?? '—'));
+    console.log('   declared name : ' + (reading.declaredName ?? '—'));
     console.log(
       '   CRC : ' +
         reading.crc.embedded +
-        (reading.crc.intact ? ' (íntegro — no indica legitimidad)' : ' (NO coincide)')
+        (reading.crc.intact ? ' (intact — does not indicate legitimacy)' : ' (does NOT match)')
     );
     const refs = reading.accountRefs.map((r) => r.value);
-    if (refs.length > 0) console.log('   identificadores : ' + refs.join(', '));
+    if (refs.length > 0) console.log('   identifiers : ' + refs.join(', '));
   }
   if (reading?.kind === 'url') {
-    console.log('   destino real : ' + reading.url.href);
+    console.log('   final destination : ' + reading.url.href);
   }
   if (result.registry?.domain) {
     const d = result.registry.domain;
-    console.log('   dominio : ' + d.label + (d.closed ? ' [cerrado]' : ' [abierto]'));
+    console.log('   domain : ' + d.label + (d.closed ? ' [closed]' : ' [open]'));
   }
   for (const note of result.notes) {
     console.log('   · [' + note.level + '] ' + note.text);
@@ -88,21 +88,21 @@ function print(arg: string, label: string, result: Verdict): void {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error('uso: qrsafe-verify <imagen|payload> [...]');
+    console.error('usage: qrsafe-verify <image|payload> [...]');
     process.exit(2);
   }
   let failed = 0;
   for (const arg of args) {
     if (!isFile(arg) && looksLikePath(arg)) {
       console.error('\n── ' + path.basename(arg));
-      console.error('   no existe el archivo: ' + arg);
+      console.error('   file does not exist: ' + arg);
       failed++;
       continue;
     }
     const { payload, label, error } = await sourceFor(arg);
     if (error !== null) {
       console.log('\n── ' + path.basename(arg));
-      console.log('   no se pudo abrir: ' + error);
+      console.log('   could not open: ' + error);
       failed++;
       continue;
     }

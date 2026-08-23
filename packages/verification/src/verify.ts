@@ -3,15 +3,15 @@
  *
  * The rules that must not be relaxed — each one is pinned by a test:
  *
- *  - NO_AUTORIZADO is only ever emitted inside a CLOSED domain. Outside one, an
+ *  - UNAUTHORIZED is only ever emitted inside a CLOSED domain. Outside one, an
  *    unknown identifier means the registry is incomplete, not that the code is
  *    forged.
- *  - FUERA_DE_COBERTURA always states, in words, that it is not a warning.
+ *  - OUT_OF_COVERAGE always states, in words, that it is not a warning.
  *    Softening that sentence into a hedged alert destroys the meaning of
- *    NO_AUTORIZADO, which is the only reason this product is worth anything.
+ *    UNAUTHORIZED, which is the only reason this product is worth anything.
  *  - An intact CRC is never reported as reassuring. A well-formed fraudulent
  *    code passes it exactly like the legitimate one.
- *  - ILEGIBLE says nothing about the code. Failing to read a photo is a fact
+ *  - UNREADABLE says nothing about the code. Failing to read a photo is a fact
  *    about the photo.
  *
  * This module knows nothing about users, channels or subscriptions. The gate
@@ -26,17 +26,17 @@ import type { Reading } from './emv.js';
 import type { Lookup } from './registry.js';
 
 export const STATES = {
-  VERIFICADO: 'VERIFICADO',
-  NO_AUTORIZADO: 'NO_AUTORIZADO',
-  FUERA_DE_COBERTURA: 'FUERA_DE_COBERTURA',
-  ANOMALIA: 'ANOMALIA',
-  ILEGIBLE: 'ILEGIBLE',
+  VERIFIED: 'VERIFIED',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  OUT_OF_COVERAGE: 'OUT_OF_COVERAGE',
+  ANOMALY: 'ANOMALY',
+  UNREADABLE: 'UNREADABLE',
 } as const;
 
 export type State = (typeof STATES)[keyof typeof STATES];
 
 export interface Note {
-  level: 'alto' | 'medio';
+  level: 'high' | 'medium';
   text: string;
 }
 
@@ -58,49 +58,49 @@ export function structuralNotes(reading: Reading): Note[] {
 
   if (!reading.wellFormed) {
     notes.push({
-      level: 'alto',
-      text: 'La estructura del código no cierra: sobran caracteres después del último campo válido.',
+      level: 'high',
+      text: 'The code structure is invalid: extra characters appear after the last valid field.',
     });
   } else if (!reading.crc.present) {
     notes.push({
-      level: 'alto',
-      text: 'Al código le falta el campo de control obligatorio (63). Sin él no hay nada que verificar.',
+      level: 'high',
+      text: 'The code is missing mandatory control field 63. Without it, there is nothing to verify.',
     });
   } else if (!reading.crc.intact) {
     notes.push({
-      level: 'alto',
+      level: 'high',
       text:
-        'El código de control no coincide (' +
+        'The control code does not match (' +
         reading.crc.embedded +
-        ' declarado, ' +
+        ' declared, ' +
         reading.crc.computed +
-        ' calculado). El contenido está alterado o mal leído.',
+        ' computed). The content was altered or read incorrectly.',
     });
   }
 
   const name = reading.declaredName;
   if (name === null || /^undefined$/i.test(name)) {
-    notes.push({ level: 'medio', text: 'El código no declara un nombre de comercio.' });
+    notes.push({ level: 'medium', text: 'The code does not declare a merchant name.' });
   } else if (CLAIMED_PUBLIC.test(name)) {
     notes.push({
-      level: 'medio',
+      level: 'medium',
       text:
-        'El código dice cobrar a nombre de «' +
+        'The code says it charges in the name of "' +
         name +
-        '». Ese texto es libre y cualquiera puede escribirlo: no prueba quién recibe el dinero.',
+        '". This is free text that anyone can enter; it does not prove who receives the money.',
     });
   }
 
   if (reading.country !== null && reading.country !== 'AR') {
     notes.push({
-      level: 'alto',
-      text: 'El código declara el país ' + reading.country + ', no Argentina.',
+      level: 'high',
+      text: 'The code declares country ' + reading.country + ', not Argentina.',
     });
   }
   if (reading.currency !== null && reading.currency !== '032') {
     notes.push({
-      level: 'alto',
-      text: 'El código declara una moneda distinta del peso argentino.',
+      level: 'high',
+      text: 'The code declares a currency other than the Argentine peso.',
     });
   }
   return notes;
@@ -109,8 +109,8 @@ export function structuralNotes(reading: Reading): Note[] {
 export function verify(payload: string | null): Verdict {
   if (payload === null || payload.length === 0) {
     return {
-      state: STATES.ILEGIBLE,
-      message: 'No pude leer un código en la imagen. Probá con más luz, de frente y más cerca.',
+      state: STATES.UNREADABLE,
+      message: 'I could not read a code in the image. Try better lighting, a straight angle, and a closer shot.',
       notes: [],
       reading: null,
       registry: null,
@@ -120,9 +120,9 @@ export function verify(payload: string | null): Verdict {
   const reading = emv.read(payload);
   if (!reading) {
     return {
-      state: STATES.FUERA_DE_COBERTURA,
+      state: STATES.OUT_OF_COVERAGE,
       message:
-        'Leí el código pero no tiene formato de pago ni de enlace conocido, así que no puedo analizarlo. Esto no es una advertencia.',
+        'I read the code, but it is not a known payment or link format, so I cannot analyze it. This is not a warning.',
       notes: [],
       reading: null,
       registry: null,
@@ -137,23 +137,23 @@ export function verify(payload: string | null): Verdict {
   // would vouch for a payment that could leave through the other. Refuse.
   if (hit.otherRoutes.length > 0) {
     notes.push({
-      level: 'alto',
+      level: 'high',
       text:
-        'el código declara más de una vía de cobro (' +
-        [hit.domain !== null ? 'la analizada' : 'sin identificar']
-          .concat(hit.otherRoutes.map((t) => 'campo ' + t))
+        'the code declares more than one payment route (' +
+        [hit.domain !== null ? 'the analyzed route' : 'unidentified route']
+          .concat(hit.otherRoutes.map((t) => 'field ' + t))
           .join(', ') +
-        '). No se puede afirmar por cuál de ellas se cobraría.',
+        '). It is not possible to determine which one would be charged.',
     });
   }
 
-  const blocking = notes.filter((n) => n.level === 'alto');
+  const blocking = notes.filter((n) => n.level === 'high');
 
   const first = blocking[0];
   if (first !== undefined) {
     return {
-      state: STATES.ANOMALIA,
-      message: 'Este código tiene algo raro: ' + first.text,
+      state: STATES.ANOMALY,
+      message: 'There is something unusual about this code: ' + first.text,
       notes,
       reading,
       registry: hit,
@@ -162,8 +162,8 @@ export function verify(payload: string | null): Verdict {
 
   if (hit.domain !== null && hit.enrolled) {
     return {
-      state: STATES.VERIFICADO,
-      message: 'QR verificado. Este código está autorizado por ' + (hit.issuer ?? hit.domain.label) + '.',
+      state: STATES.VERIFIED,
+      message: 'Verified QR. This code is authorized by ' + (hit.issuer ?? hit.domain.label) + '.',
       notes,
       reading,
       registry: hit,
@@ -172,9 +172,9 @@ export function verify(payload: string | null): Verdict {
 
   if (hit.domain !== null && hit.domain.closed) {
     return {
-      state: STATES.NO_AUTORIZADO,
+      state: STATES.UNAUTHORIZED,
       message:
-        'Advertencia. Este QR no está registrado como un medio de cobro autorizado por ' +
+        'Warning. This QR is not registered as a payment method authorized by ' +
         (hit.issuer ?? hit.domain.label) +
         '.',
       notes,
@@ -185,9 +185,9 @@ export function verify(payload: string | null): Verdict {
 
   // Domain unknown, or known but still open: the registry cannot speak.
   return {
-    state: STATES.FUERA_DE_COBERTURA,
+    state: STATES.OUT_OF_COVERAGE,
     message:
-      'Todavía no tengo registro de este comercio, así que no puedo confirmar ni descartar nada. Esto no es una advertencia.',
+      'I do not have a record for this merchant yet, so I cannot confirm or rule out anything. This is not a warning.',
     notes,
     reading,
     registry: hit,

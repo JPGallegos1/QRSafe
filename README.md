@@ -1,30 +1,30 @@
 # QRSafe
 
-Monorepositorio de QRSafe administrado con Turborepo y npm workspaces.
+QRSafe monorepo managed with Turborepo and npm workspaces.
 
-## Aplicaciones
+## Applications
 
-- `apps/app`: landing pública con React 19 y Vite 8.
-- `apps/admin`: panel administrativo con React 19 y Vite 8.
-- `apps/api`: API Node.js con Express 5.
-- `docs`: documentación e investigación del proyecto.
+- `apps/app`: public landing page built with React 19 and Vite 8.
+- `apps/admin`: administrative dashboard built with React 19 and Vite 8.
+- `apps/api`: Node.js API built with Express 5.
+- `docs`: project documentation and research.
 
-## Desarrollo
+## Development
 
-Requiere Node.js 24 o superior.
+Requires Node.js 24 or later.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Servicios locales:
+Local services:
 
-- Landing: <http://localhost:5173>
+- Landing page: <http://localhost:5173>
 - Admin: <http://localhost:5174>
 - API: <http://localhost:3000>
 
-## Verificación
+## Verification
 
 ```bash
 npm run lint

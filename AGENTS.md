@@ -1,18 +1,18 @@
-# Investigacion de mercado
+# Market Research
 
-## Skill obligatoria
+## Required Skill
 
-Para cualquier investigacion de mercado, carga la skill `research` antes de empezar. Si no esta instalada localmente, obtenla desde [mattpocock/skills: engineering/research](https://github.com/mattpocock/skills/tree/main/skills/engineering/research). La skill delega la busqueda a un agente en segundo plano y exige contrastar los hallazgos con fuentes primarias.
+For all market research, load the `research` skill before starting. If it is not installed locally, obtain it from [mattpocock/skills: engineering/research](https://github.com/mattpocock/skills/tree/main/skills/engineering/research). The skill delegates research to a background agent and requires findings to be checked against primary sources.
 
-## Flujo de trabajo
+## Workflow
 
-1. Delimita la pregunta, mercado, geografia y periodo a investigar.
-2. Prioriza fuentes primarias: organismos reguladores, empresas analizadas, documentacion oficial, registros publicos, especificaciones y APIs.
-3. Usa fuentes secundarias solo para localizar pistas o casos; etiquetalas como tales y no las uses como unica evidencia de una afirmacion importante.
-4. Guarda un unico informe en `docs/research/` con un nombre descriptivo en kebab-case.
-5. Incluye fecha, alcance, metodologia, resumen ejecutivo, hallazgos, limitaciones y enlaces junto a cada afirmacion verificable.
-6. Distingue claramente hechos, estimaciones e hipotesis. Declara los vacios de datos en vez de inferirlos.
+1. Define the research question, market, geography, and time period.
+2. Prioritize primary sources: regulators, the companies being analyzed, official documentation, public records, specifications, and APIs.
+3. Use secondary sources only to find leads or cases; label them as such and do not use them as the only evidence for an important claim.
+4. Save a single report in `docs/research/` with a descriptive kebab-case name.
+5. Include the date, scope, methodology, executive summary, findings, limitations, and links next to every verifiable claim.
+6. Clearly distinguish facts, estimates, and hypotheses. State data gaps instead of inferring through them.
 
-## Criterio de salida
+## Completion Criteria
 
-Un informe esta listo cuando responde la pregunta inicial, cada hallazgo relevante tiene una fuente enlazada y sus limitaciones permiten evaluar la confianza de las conclusiones.
+A report is ready when it answers the original question, every relevant finding has a linked source, and its limitations make it possible to assess confidence in the conclusions.

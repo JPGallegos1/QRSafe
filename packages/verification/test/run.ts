@@ -32,7 +32,7 @@ function check(name: string, condition: boolean, detail?: string): void {
 
 /* Payloads decoded from real photographs in images/. Not synthetic. */
 const REAL = {
-  cartelMP:
+  mercadoPagoSign:
     '00020101021143530016com.mercadolibre0129https://mpago.la/pos/4223845750150011000000000005204970053030325802AR5909UNDEFINED6004CABA630442AC',
   coto: '00020101021143530016com.mercadolibre0129https://mpago.la/pos/1142682450150011305480831565204970053030325802AR5925COTO CENTRO INTEGRAL DE C6015CAPITAL FEDERAL63043E84',
 } as const;
@@ -40,66 +40,66 @@ const REAL = {
 /* --- parsing --- */
 for (const [name, payload] of Object.entries(REAL)) {
   const reading = emv.parse(payload);
-  check('parse: ' + name + ' reconocido como EMV', reading !== null);
+  check('parse: ' + name + ' recognized as EMV', reading !== null);
   if (!reading) continue;
   check(
-    'parse: ' + name + ' CRC íntegro',
+    'parse: ' + name + ' CRC intact',
     reading.crc.intact,
-    'embebido ' + reading.crc.embedded + ' vs calculado ' + reading.crc.computed
+    'embedded ' + reading.crc.embedded + ' vs computed ' + reading.crc.computed
   );
-  check('parse: ' + name + ' es estático', reading.isStatic);
-  check('parse: ' + name + ' país AR', reading.country === 'AR');
+  check('parse: ' + name + ' is static', reading.isStatic);
+  check('parse: ' + name + ' country AR', reading.country === 'AR');
   check(
-    'parse: ' + name + ' expone un identificador de POS',
+    'parse: ' + name + ' exposes a POS identifier',
     reading.accountRefs.some((r) => /mpago\.la\/pos\//.test(r.value))
   );
 }
 
 check(
-  'parse: el cartel de Mercado Pago declara UNDEFINED como nombre',
-  emv.parse(REAL.cartelMP)?.declaredName === 'UNDEFINED'
+  'parse: the Mercado Pago sign declares UNDEFINED as its name',
+  emv.parse(REAL.mercadoPagoSign)?.declaredName === 'UNDEFINED'
 );
 check(
-  'crc: alterar un dígito rompe la integridad',
+  'crc: changing one digit breaks integrity',
   emv.parse(REAL.coto.replace('5925COTO', '5925KOTO'))?.crc.intact === false
 );
-check('parse: una URL suelta no es EMV', emv.parse('https://ejemplo.com/x') === null);
-check('read: una URL suelta se lee como url', emv.read('https://ejemplo.com/x')?.kind === 'url');
-check('read: basura no se lee', emv.read('no soy un qr') === null);
+check('parse: a standalone URL is not EMV', emv.parse('https://example.com/x') === null);
+check('read: a standalone URL is read as a URL', emv.read('https://example.com/x')?.kind === 'url');
+check('read: garbage is not read', emv.read('not a qr') === null);
 
-/* --- las reglas que no se relajan --- */
-const outOfCoverage = verify(REAL.cartelMP);
+/* --- rules that must not be relaxed --- */
+const outOfCoverage = verify(REAL.mercadoPagoSign);
 check(
-  'regla: un dominio abierto nunca produce NO_AUTORIZADO',
-  outOfCoverage.state !== STATES.NO_AUTORIZADO,
-  'devolvió ' + outOfCoverage.state
+   'rule: an open domain never produces UNAUTHORIZED',
+   outOfCoverage.state !== STATES.UNAUTHORIZED,
+   'returned ' + outOfCoverage.state
 );
 check(
-  'regla: fuera de cobertura aclara que no es una advertencia',
-  /no es una advertencia/i.test(outOfCoverage.message),
+   'rule: out of coverage makes clear that it is not a warning',
+   /not a warning/i.test(outOfCoverage.message),
   outOfCoverage.message
 );
 
 const unreadable = verify(null);
-check('regla: sin payload el estado es ILEGIBLE', unreadable.state === STATES.ILEGIBLE);
+check('rule: no payload produces UNREADABLE', unreadable.state === STATES.UNREADABLE);
 check(
-  'regla: ilegible no acusa al código',
-  !/advertencia|fraud|no autorizado/i.test(unreadable.message),
+  'rule: unreadable does not accuse the code',
+  !/warning|fraud|unauthorized/i.test(unreadable.message),
   unreadable.message
 );
 
 const tampered = verify(REAL.coto.replace('5925COTO', '5925KOTO'));
-check('regla: CRC roto produce ANOMALIA', tampered.state === STATES.ANOMALIA);
+check('rule: a broken CRC produces ANOMALY', tampered.state === STATES.ANOMALY);
 
-/* --- estados que dependen del registro ---
-   Se inyecta un dominio de prueba en vez de enrolar comercios reales en el
-   registro de producción. Los dos estados fuertes tienen que ser alcanzables y
-   tienen que depender exclusivamente del flag `closed`. */
+/* --- registry-dependent states ---
+   A test domain is injected instead of enrolling real merchants in the
+   production registry. The two strong states must be reachable and must depend
+   exclusively on the `closed` flag. */
 function withDomain<T>(closed: boolean, authorized: [string, string][], fn: () => T): T {
   const fixture: Domain = {
     id: 'fixture',
-    label: 'Dominio de prueba',
-    issuer: 'Emisor de Prueba',
+    label: 'Test domain',
+    issuer: 'Test issuer',
     closed,
     matches: { schemes: ['com.mercadolibre'], hosts: ['mpago.la'] },
     authorized: new Map(authorized),
@@ -114,86 +114,86 @@ function withDomain<T>(closed: boolean, authorized: [string, string][], fn: () =
 
 const enrolled = withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(REAL.coto));
 check(
-  'registro: identificador enrolado produce VERIFICADO',
-  enrolled.state === STATES.VERIFICADO,
-  'devolvió ' + enrolled.state
+  'registry: an enrolled identifier produces VERIFIED',
+  enrolled.state === STATES.VERIFIED,
+  'returned ' + enrolled.state
 );
 check(
-  'registro: VERIFICADO nombra al COMERCIO, no al dominio',
-  /autorizado por Coto CICSA/.test(enrolled.message),
+  'registry: VERIFIED names the MERCHANT, not the domain',
+  /authorized by Coto CICSA/.test(enrolled.message),
   enrolled.message
 );
 check(
-  'registro: VERIFICADO no nombra al dominio en lugar del comercio',
-  !/Dominio de prueba/.test(enrolled.message),
+  'registry: VERIFIED does not name the domain instead of the merchant',
+  !/Test domain/.test(enrolled.message),
   enrolled.message
 );
 
 const missingClosed = withDomain(true, [], () => verify(REAL.coto));
 check(
-  'registro: ausente en dominio CERRADO produce NO_AUTORIZADO',
-  missingClosed.state === STATES.NO_AUTORIZADO,
-  'devolvió ' + missingClosed.state
+  'registry: a missing identifier in a CLOSED domain produces UNAUTHORIZED',
+  missingClosed.state === STATES.UNAUTHORIZED,
+  'returned ' + missingClosed.state
 );
 
 const missingOpen = withDomain(false, [], () => verify(REAL.coto));
 check(
-  'registro: el MISMO caso en dominio ABIERTO no acusa',
-  missingOpen.state === STATES.FUERA_DE_COBERTURA,
-  'devolvió ' + missingOpen.state
+  'registry: the SAME case in an OPEN domain does not accuse',
+  missingOpen.state === STATES.OUT_OF_COVERAGE,
+  'returned ' + missingOpen.state
 );
 check(
-  'registro: sólo el flag closed separa la acusación del silencio',
+  'registry: only the closed flag separates accusation from silence',
   missingClosed.state !== missingOpen.state
 );
 
 check(
-  'regla: ningún mensaje afirma que el QR sea seguro',
+  'rule: no message claims the QR is safe',
   ![outOfCoverage, unreadable, tampered, enrolled, missingClosed, missingOpen].some((r) =>
-    /\bsegur[oa]\b/i.test(r.message)
+    /\bsafe\b/i.test(r.message)
   )
 );
 
-/* --- invariante: un dominio cerrado tiene que poder nombrar a alguien ---
-   NO_AUTORIZADO acusa a un emisor por no haber autorizado el código. Un dominio
-   sin emisor único no tiene a quién nombrar, así que no puede estar cerrado.
-   Sin esto, un VERIFICADO o una acusación nombrarían al dominio en lugar del
-   comercio, que es responder otra pregunta. */
+/* --- invariant: a closed domain must be able to name someone ---
+   UNAUTHORIZED accuses an issuer of not authorizing the code. A domain without
+   a unique issuer has no one to name, so it cannot be closed. Without this, a
+   VERIFIED verdict or an accusation would name the domain rather than the
+   merchant, which answers a different question. */
 for (const d of DOMAINS) {
   check(
-    'invariante: el dominio ' + d.id + ' no está cerrado sin emisor',
+    'invariant: domain ' + d.id + ' is not closed without an issuer',
     !(d.closed && d.issuer === null),
     'closed=' + String(d.closed) + ' issuer=' + String(d.issuer)
   );
 }
 
-const sinEmisor = withDomain(false, [], () => verify(REAL.coto));
+const noIssuer = withDomain(false, [], () => verify(REAL.coto));
 check(
-  'invariante: sin emisor y sin enrolar, el veredicto no acusa',
-  sinEmisor.state === STATES.FUERA_DE_COBERTURA,
-  'devolvió ' + sinEmisor.state
+  'invariant: without an issuer or enrollment, the verdict does not accuse',
+  noIssuer.state === STATES.OUT_OF_COVERAGE,
+  'returned ' + noIssuer.state
 );
 
-/* --- hallazgos del review de seguridad --- */
+/* --- security review findings --- */
 
-/* 1. Un payload SIN el campo 63 obligatorio, con crc16(prefijo) pegado al final,
-      se comparaba consigo mismo y parecía íntegro. */
-const sinCRC = (() => {
-  const cuerpo = REAL.coto.slice(0, REAL.coto.length - 8); // saca "6304XXXX"
-  return cuerpo + emv.crc16(cuerpo);
+/* 1. A payload WITHOUT mandatory field 63, with crc16(prefix) appended to the
+      end, compared against itself and appeared intact. */
+const missingCrc = (() => {
+  const body = REAL.coto.slice(0, REAL.coto.length - 8); // removes "6304XXXX"
+  return body + emv.crc16(body);
 })();
-check('estructura: sin campo 63 el CRC no está presente', emv.parse(sinCRC)?.crc.present === false);
-check('estructura: sin campo 63 el CRC NO puede figurar íntegro', emv.parse(sinCRC)?.crc.intact === false);
+check('structure: without field 63 the CRC is not present', emv.parse(missingCrc)?.crc.present === false);
+check('structure: without field 63 the CRC cannot appear intact', emv.parse(missingCrc)?.crc.intact === false);
 check(
-  'estructura: sin campo 63 el veredicto es ANOMALIA, nunca VERIFICADO',
-  withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(sinCRC)).state === STATES.ANOMALIA
+  'structure: without field 63, the verdict is ANOMALY, never VERIFIED',
+  withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(missingCrc)).state === STATES.ANOMALY
 );
 
-/* 2. Dos vías de cobro en un mismo código: una enrolada y otra no. El veredicto
-      no puede avalar el QR entero, porque la billetera podría tomar la otra. */
-const dosRutas = (() => {
+/* 2. Two payment routes in one code: one enrolled and one not. The verdict
+      cannot endorse the whole QR because the wallet could choose the other. */
+const twoRoutes = (() => {
   const tlv = (t: string, v: string) => t + String(v.length).padStart(2, '0') + v;
-  const cuerpo =
+  const body =
     tlv('00', '01') +
     tlv('01', '11') +
     tlv('43', tlv('00', 'com.mercadolibre') + tlv('01', 'https://mpago.la/pos/11426824')) +
@@ -202,29 +202,29 @@ const dosRutas = (() => {
     tlv('58', 'AR') +
     tlv('59', 'COTO') +
     tlv('60', 'CABA');
-  const conCRC = cuerpo + '6304';
-  return conCRC + emv.crc16(conCRC);
+  const withCrc = body + '6304';
+  return withCrc + emv.crc16(withCrc);
 })();
-const rutas = emv.parse(dosRutas);
-check('rutas: el payload de dos vías parsea y su CRC es íntegro', rutas?.crc.intact === true);
-const veredictoRutas = withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(dosRutas));
+const routes = emv.parse(twoRoutes);
+check('routes: the two-route payload parses and its CRC is intact', routes?.crc.intact === true);
+const routesVerdict = withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(twoRoutes));
 check(
-  'rutas: con una vía enrolada y otra ajena NO devuelve VERIFICADO',
-  veredictoRutas.state !== STATES.VERIFICADO,
-  'devolvió ' + veredictoRutas.state
+  'routes: one enrolled and one foreign route does NOT return VERIFIED',
+  routesVerdict.state !== STATES.VERIFIED,
+  'returned ' + routesVerdict.state
 );
 check(
-  'rutas: el veredicto es ANOMALIA y nombra el problema',
-  veredictoRutas.state === STATES.ANOMALIA && /más de una vía de cobro/.test(veredictoRutas.message),
-  veredictoRutas.message
+  'routes: the verdict is ANOMALY and names the issue',
+  routesVerdict.state === STATES.ANOMALY && /more than one payment route/.test(routesVerdict.message),
+  routesVerdict.message
 );
 check(
-  'rutas: la búsqueda en el registro reporta las vías no cubiertas',
-  (veredictoRutas.registry?.otherRoutes.length ?? 0) > 0
+  'routes: registry lookup reports routes outside coverage',
+  (routesVerdict.registry?.otherRoutes.length ?? 0) > 0
 );
 
-/* 3. Bomba de descompresión: dimensiones enormes declaradas en la cabecera. */
-const bombaPNG = (() => {
+/* 3. Decompression bomb: enormous dimensions declared in the header. */
+const decompressionBombPng = (() => {
   const b = Buffer.alloc(24);
   b.writeUInt32BE(0x89504e47, 0);
   b.writeUInt32BE(0x0d0a1a0a, 4);
@@ -234,130 +234,130 @@ const bombaPNG = (() => {
   b.writeUInt32BE(60000, 20);
   return b;
 })();
-const bomba = await decodeImage(bombaPNG);
+const decompressionBomb = await decodeImage(decompressionBombPng);
 check(
-  'seguridad: una imagen que declara 60000x60000 se rechaza sin decodificar',
-  bomba.payload === null && bomba.attempts === 0 && /por encima del límite/.test(bomba.error ?? ''),
-  'error=' + String(bomba.error) + ' intentos=' + String(bomba.attempts)
+  'security: an image declaring 60000x60000 is rejected without decoding',
+  decompressionBomb.payload === null && decompressionBomb.attempts === 0 && /above the limit/.test(decompressionBomb.error ?? ''),
+  'error=' + String(decompressionBomb.error) + ' attempts=' + String(decompressionBomb.attempts)
 );
 
 
-/* --- longitudes en BYTES, no en caracteres ---
-   EMVCo cuenta bytes UTF-8. Un comercio argentino con acento en el nombre es el
-   caso común, no el borde: si el parseo camina caracteres de JavaScript, el
-   payload se desalinea y un QR legítimo termina en ANOMALIA. Falsa alarma sobre
-   un comercio real es exactamente el fallo que este producto existe para evitar. */
-const conAcento = (() => {
+/* --- lengths in BYTES, not characters ---
+   EMVCo counts UTF-8 bytes. An Argentine merchant with an accent in its name is
+   the normal case, not an edge case: if parsing walks JavaScript characters, the
+   payload becomes misaligned and a legitimate QR ends in ANOMALY. A false alarm
+   about a real merchant is exactly the failure this product exists to prevent. */
+const withAccent = (() => {
   const tlv = (t: string, v: string) => t + String(emv.byteLength(v)).padStart(2, '0') + v;
-  const cuerpo =
+  const body =
     tlv('00', '01') + tlv('01', '11') + tlv('59', 'PANADERÍA SAN JOSÉ') + tlv('58', 'AR');
-  const conCRC = cuerpo + '6304';
-  return conCRC + emv.crc16(conCRC);
+  const withCrc = body + '6304';
+  return withCrc + emv.crc16(withCrc);
 })();
-const acentuado = emv.parse(conAcento);
-check('bytes: el nombre con acentos se lee entero', acentuado?.declaredName === 'PANADERÍA SAN JOSÉ', String(acentuado?.declaredName));
-check('bytes: el campo siguiente al acentuado no se pierde', acentuado?.country === 'AR', String(acentuado?.country));
-check('bytes: el payload con acentos cierra bien', acentuado?.wellFormed === true);
-check('bytes: el CRC sobre bytes coincide', acentuado?.crc.intact === true);
+const accented = emv.parse(withAccent);
+check('bytes: the name with accents is read whole', accented?.declaredName === 'PANADERÍA SAN JOSÉ', String(accented?.declaredName));
+check('bytes: the field after the accented one is not lost', accented?.country === 'AR', String(accented?.country));
+check('bytes: the payload with accents is well formed', accented?.wellFormed === true);
+check('bytes: the CRC over bytes matches', accented?.crc.intact === true);
 check(
-  'bytes: un comercio con acento NO dispara una falsa alarma',
-  verify(conAcento).state !== STATES.ANOMALIA,
-  'devolvió ' + verify(conAcento).state
+  'bytes: a merchant with an accent does not trigger a false alarm',
+  verify(withAccent).state !== STATES.ANOMALY,
+  'returned ' + verify(withAccent).state
 );
-check('bytes: byteLength cuenta UTF-8, no UTF-16', emv.byteLength('ÍÉ') === 4 && 'ÍÉ'.length === 2);
+check('bytes: byteLength counts UTF-8, not UTF-16', emv.byteLength('ÍÉ') === 4 && 'ÍÉ'.length === 2);
 
 
-/* --- ida y vuelta del decodificador ---
-   El corpus de images/ es un informe, no una aserción: está gitignorado y su
-   tasa se mueve con las fotos. Esto en cambio genera un QR real en memoria y
-   verifica que el decodificador lo lee, sin depender de ningún archivo. */
-const generado = await QRCode.toBuffer(REAL.coto, {
+/* --- decoder round trip ---
+   The images/ corpus is a report, not an assertion: it is gitignored and its
+   rate changes with the photos. This instead generates a real QR in memory and
+   verifies that the decoder reads it without depending on any file. */
+const generated = await QRCode.toBuffer(REAL.coto, {
   errorCorrectionLevel: 'M',
   margin: 4,
   scale: 6,
   type: 'png',
 });
-const leido = await decodeImage(generado);
-check('decoder: lee un QR generado en memoria', leido.payload !== null, 'error=' + String(leido.error));
-check('decoder: devuelve exactamente el payload original', leido.payload === REAL.coto);
+const decoded = await decodeImage(generated);
+check('decoder: reads an in-memory generated QR', decoded.payload !== null, 'error=' + String(decoded.error));
+check('decoder: returns exactly the original payload', decoded.payload === REAL.coto);
 check(
-  'decoder: ese payload verifica igual que el literal',
-  verify(leido.payload).state === verify(REAL.coto).state
+  'decoder: that payload verifies the same as the literal',
+  verify(decoded.payload).state === verify(REAL.coto).state
 );
 
-/* Un QR con acentos tiene que sobrevivir la ida y vuelta completa: encode,
-   imagen, decode, parseo por bytes. */
-const qrAcento = await QRCode.toBuffer(conAcento, { margin: 4, scale: 6, type: 'png' });
-const leidoAcento = await decodeImage(qrAcento);
-check('decoder: un QR con acentos vuelve idéntico', leidoAcento.payload === conAcento);
+/* A QR with accents must survive the complete round trip: encode, image,
+   decode, byte parsing. */
+const accentQr = await QRCode.toBuffer(withAccent, { margin: 4, scale: 6, type: 'png' });
+const decodedAccent = await decodeImage(accentQr);
+check('decoder: a QR with accents returns unchanged', decodedAccent.payload === withAccent);
 check(
-  'decoder: y no dispara una falsa alarma',
-  verify(leidoAcento.payload).state !== STATES.ANOMALIA,
-  'devolvió ' + verify(leidoAcento.payload).state
+  'decoder: and does not trigger a false alarm',
+  verify(decodedAccent.payload).state !== STATES.ANOMALY,
+  'returned ' + verify(decodedAccent.payload).state
 );
 
-/* Una imagen sin ningún código no es sospechosa: es ilegible. */
-const vacia = await QRCode.toBuffer('x', { margin: 0, scale: 1, type: 'png' });
-const recorte = vacia.subarray(0, Math.min(vacia.length, 200));
-const rota = await decodeImage(recorte);
-check('decoder: una imagen rota no acusa al código', verify(rota.payload).state === STATES.ILEGIBLE);
+/* An image without any code is not suspicious: it is unreadable. */
+const empty = await QRCode.toBuffer('x', { margin: 0, scale: 1, type: 'png' });
+const crop = empty.subarray(0, Math.min(empty.length, 200));
+const corruptImage = await decodeImage(crop);
+check('decoder: a broken image does not accuse the code', verify(corruptImage.payload).state === STATES.UNREADABLE);
 
 
-/* --- pisos de lectura ---
-   Los límites reales se miden con `npm run bench`. Acá se clavan pisos
-   conservadores, bien adentro de lo medido, para que un cambio en la escalera
-   de preproceso que empeore la lectura rompa el build en vez de pasar
-   desapercibido. No son los límites: son el suelo que no se puede perder. */
-const PISO_CANVAS = 900;
+/* --- decoding floors ---
+   The actual limits are measured with `npm run bench`. Conservative floors,
+   well within measured results, are pinned here so a preprocessing-pipeline
+   change that worsens decoding breaks the build rather than going unnoticed.
+   They are not the limits: they are the ground that cannot be lost. */
+const CANVAS_FLOOR = 900;
 
-async function leeIgual(img: Awaited<ReturnType<typeof onCanvas>>): Promise<boolean> {
+async function decodesIdentically(img: Awaited<ReturnType<typeof onCanvas>>): Promise<boolean> {
   const buf = await img.getBufferAsync('image/png');
   const { payload } = await decodeImage(buf);
   return payload === REAL.coto;
 }
 
-const qrChico = await onCanvas(REAL.coto, PISO_CANVAS, 200);
-check('piso: lee un QR de 200px de lado', await leeIgual(qrChico));
+const smallQr = await onCanvas(REAL.coto, CANVAS_FLOOR, 200);
+check('floor: reads a QR 200px per side', await decodesIdentically(smallQr));
 
-const qrGirado = rotate(await onCanvas(REAL.coto, PISO_CANVAS, 420), 20);
-check('piso: lee con 20 grados de rotación', await leeIgual(qrGirado));
+const rotatedQr = rotate(await onCanvas(REAL.coto, CANVAS_FLOOR, 420), 20);
+check('floor: reads with 20 degrees of rotation', await decodesIdentically(rotatedQr));
 
-const qrBorroso = blur(await onCanvas(REAL.coto, PISO_CANVAS, 420), 3);
-check('piso: lee con 3px de desenfoque', await leeIgual(qrBorroso));
+const blurredQr = blur(await onCanvas(REAL.coto, CANVAS_FLOOR, 420), 3);
+check('floor: reads with 3px of blur', await decodesIdentically(blurredQr));
 
-/* La perspectiva era el eje más flojo: leía hasta 10% antes de la
-   contra-inclinación y hasta 40% después. Este piso protege esa ganancia, que
-   es la que cubre el caso real de un cartel fotografiado de costado. */
-const base420 = await onCanvas(REAL.coto, PISO_CANVAS, 420);
-for (const [nombre, img] of [
+/* Perspective was the weakest axis: it read up to 10% before counter-tilt and
+   up to 40% afterward. This floor protects that gain, which covers the real
+   case of a sign photographed from the side. */
+const base420 = await onCanvas(REAL.coto, CANVAS_FLOOR, 420);
+for (const [label, img] of [
   ['horizontal +', tilt(base420, 0.25, 'h')],
   ['horizontal -', tilt(base420, -0.25, 'h')],
   ['vertical +', tilt(base420, 0.25, 'v')],
   ['vertical -', tilt(base420, -0.25, 'v')],
 ] as const) {
-  check('piso: lee con 25% de inclinación ' + nombre, await leeIgual(img));
+  check('floor: reads with 25% tilt ' + label, await decodesIdentically(img));
 }
 
-/* La orientación no puede decidir cuánto trabajo se hace. Un 1000x2600 corría
-   los doce warps a resolución completa porque el tope miraba sólo el ancho:
-   27 segundos y 636 MB, contra bastante menos con los mismos píxeles apaisados.
-   Se compara la cantidad de intentos, que es determinista, y no el tiempo. */
+/* Orientation cannot decide how much work is done. A 1000x2600 image ran all
+   twelve warps at full resolution because the cap considered only width: 27
+   seconds and 636 MB, versus far less with the same landscape pixels. Compare
+   attempt count, which is deterministic, not time. */
 const vertical = await new Jimp(700, 1800, 0xf0f0f0ff).getBufferAsync('image/png');
-const apaisado = await new Jimp(1800, 700, 0xf0f0f0ff).getBufferAsync('image/png');
-const costoVertical = (await decodeImage(vertical)).attempts;
-const costoApaisado = (await decodeImage(apaisado)).attempts;
+const landscape = await new Jimp(1800, 700, 0xf0f0f0ff).getBufferAsync('image/png');
+const verticalCost = (await decodeImage(vertical)).attempts;
+const landscapeCost = (await decodeImage(landscape)).attempts;
 check(
-  'costo: la orientación no cambia el trabajo del peor caso',
-  costoVertical === costoApaisado,
-  'vertical=' + costoVertical + ' apaisado=' + costoApaisado
+  'cost: orientation does not change worst-case work',
+  verticalCost === landscapeCost,
+  'vertical=' + verticalCost + ' landscape=' + landscapeCost
 );
 
 
-/* --- corpus --- */
-async function corpus(): Promise<void> {
+/* --- image corpus --- */
+async function imageCorpus(): Promise<void> {
   const root = path.resolve(HERE, '..', '..', '..', 'images');
   if (!fs.existsSync(root)) {
-    console.log('\ncorpus: images/ no está presente (gitignored) — omitido');
+    console.log('\nimage corpus: images/ is not present (gitignored) - skipped');
     return;
   }
   const files: string[] = [];
@@ -384,18 +384,18 @@ async function corpus(): Promise<void> {
   }
 
   const rate = files.length > 0 ? Math.round((read / files.length) * 100) : 0;
-  console.log('\ncorpus: ' + read + '/' + files.length + ' leídas (' + rate + '%)');
+  console.log('\nimage corpus: ' + read + '/' + files.length + ' read (' + rate + '%)');
   for (const [state, n] of Object.entries(states)) console.log('  ' + state + ': ' + n);
   if (misses.length > 0) {
-    console.log('  no leídas:');
+    console.log('  unread:');
     for (const m of misses) console.log('    - ' + m);
   }
 }
 
-await corpus().catch((err: unknown) => {
-  console.log('\ncorpus: error — ' + (err instanceof Error ? err.message : String(err)));
+await imageCorpus().catch((err: unknown) => {
+  console.log('\nimage corpus: error - ' + (err instanceof Error ? err.message : String(err)));
 });
 
-console.log('\n' + passed + ' comprobaciones OK, ' + failures.length + ' fallidas');
-for (const f of failures) console.log('  FALLA  ' + f);
+console.log('\n' + passed + ' checks passed, ' + failures.length + ' failed');
+for (const f of failures) console.log('  FAILURE  ' + f);
 process.exit(failures.length > 0 ? 1 : 0);

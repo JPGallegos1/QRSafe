@@ -107,13 +107,13 @@ type Variant = readonly [name: string, transform: (image: JimpImage) => JimpImag
 
 const VARIANTS: readonly Variant[] = [
   ['original', (im) => im],
-  ['gris', (im) => im.greyscale()],
-  ['gris+contraste', (im) => im.greyscale().contrast(0.5)],
-  ['normalizado', (im) => im.greyscale().normalize()],
+  ['grayscale', (im) => im.greyscale()],
+  ['grayscale+contrast', (im) => im.greyscale().contrast(0.5)],
+  ['normalized', (im) => im.greyscale().normalize()],
   ['x2', (im) => im.scale(2)],
-  ['gris+x2+contraste', (im) => im.greyscale().scale(2).contrast(0.5)],
-  ['gris+x2+normalizado', (im) => im.greyscale().scale(2).normalize()],
-  ['umbral', (im) => im.greyscale().contrast(0.85).posterize(2)],
+  ['grayscale+x2+contrast', (im) => im.greyscale().scale(2).contrast(0.5)],
+  ['grayscale+x2+normalized', (im) => im.greyscale().scale(2).normalize()],
+  ['threshold', (im) => im.greyscale().contrast(0.85).posterize(2)],
 ];
 
 function scan(image: JimpImage): string | null {
@@ -124,14 +124,14 @@ function scan(image: JimpImage): string | null {
     inversionAttempts: 'attemptBoth',
   });
   // An empty payload is a failed read, not a read of nothing: returning '' here
-  // would count as decoded and inflate the read rate while yielding ILEGIBLE.
+  // would count as decoded and inflate the read rate while yielding UNREADABLE.
   const payload = result?.data ?? '';
   return payload.length > 0 ? payload : null;
 }
 
 /**
  * Returns a DecodeResult whose `payload` is null when nothing reads. Callers
- * must treat null as ILEGIBLE, never as a suspicious code: failing to read a
+ * must treat null as UNREADABLE, never as a suspicious code: failing to read a
  * photo says nothing about the code in it.
  */
 export async function decodeImage(source: string | Buffer): Promise<DecodeResult> {
@@ -144,7 +144,7 @@ export async function decodeImage(source: string | Buffer): Promise<DecodeResult
         via: null,
         dims: null,
         attempts: 0,
-        error: 'la imagen pesa ' + Math.round(bytes / 1024 / 1024) + ' MB, por encima del límite',
+        error: 'the image is ' + Math.round(bytes / 1024 / 1024) + ' MB, above the limit',
       };
     }
     const declared = probeDimensions(head);
@@ -154,7 +154,7 @@ export async function decodeImage(source: string | Buffer): Promise<DecodeResult
         via: null,
         dims: declared.width + 'x' + declared.height,
         attempts: 0,
-        error: 'la imagen declara ' + declared.width + 'x' + declared.height + ', por encima del límite',
+        error: 'the image declares ' + declared.width + 'x' + declared.height + ', above the limit',
       };
     }
   } catch (err) {
@@ -298,7 +298,7 @@ function scanDeskew(image: JimpImage): { payload: string | null; via: string | n
       }
       const payload = scan(candidate);
       if (payload !== null) {
-        return { payload, via: 'contra-inclinación ' + axis + '=' + s, attempts };
+        return { payload, via: 'counter-tilt ' + axis + '=' + s, attempts };
       }
     }
   }
@@ -334,7 +334,7 @@ function scanTiles(image: JimpImage): TileResult {
         }
         const payload = scan(tile);
         if (payload !== null) {
-          return { payload, via: 'mosaico ' + n + 'x' + n + ' @' + x + ',' + y, attempts };
+          return { payload, via: 'tile ' + n + 'x' + n + ' @' + x + ',' + y, attempts };
         }
       }
     }
