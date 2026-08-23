@@ -17,6 +17,7 @@ import { verify, STATES } from '../src/verify.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
 import QRCode from 'qrcode';
+import { onCanvas, rotate, blur } from '../bench/degrade.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -299,6 +300,29 @@ const vacia = await QRCode.toBuffer('x', { margin: 0, scale: 1, type: 'png' });
 const recorte = vacia.subarray(0, Math.min(vacia.length, 200));
 const rota = await decodeImage(recorte);
 check('decoder: una imagen rota no acusa al código', verify(rota.payload).state === STATES.ILEGIBLE);
+
+
+/* --- pisos de lectura ---
+   Los límites reales se miden con `npm run bench`. Acá se clavan pisos
+   conservadores, bien adentro de lo medido, para que un cambio en la escalera
+   de preproceso que empeore la lectura rompa el build en vez de pasar
+   desapercibido. No son los límites: son el suelo que no se puede perder. */
+const PISO_CANVAS = 900;
+
+async function leeIgual(img: Awaited<ReturnType<typeof onCanvas>>): Promise<boolean> {
+  const buf = await img.getBufferAsync('image/png');
+  const { payload } = await decodeImage(buf);
+  return payload === REAL.coto;
+}
+
+const qrChico = await onCanvas(REAL.coto, PISO_CANVAS, 200);
+check('piso: lee un QR de 200px de lado', await leeIgual(qrChico));
+
+const qrGirado = rotate(await onCanvas(REAL.coto, PISO_CANVAS, 420), 20);
+check('piso: lee con 20 grados de rotación', await leeIgual(qrGirado));
+
+const qrBorroso = blur(await onCanvas(REAL.coto, PISO_CANVAS, 420), 3);
+check('piso: lee con 3px de desenfoque', await leeIgual(qrBorroso));
 
 
 /* --- corpus --- */

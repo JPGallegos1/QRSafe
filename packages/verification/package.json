@@ -20,10 +20,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit --pretty false",
+    "check": "tsc -p tsconfig.check.json --pretty false",
     "lint": "oxlint src",
     "test": "tsx test/run.ts",
-    "verify": "tsx src/cli.ts"
+    "verify": "tsx src/cli.ts",
+    "bench": "tsx bench/limits.ts"
   },
   "dependencies": {
     "jimp": "0.22.12",
