@@ -19,3 +19,9 @@ Thumbs.db
 
 # QR de prueba: se regeneran con scripts/qr-pruebas/generar.mts
 /qr-pruebas/
+
+# Secreto local del webhook, no se versiona
+/.webhook-secret.local
+
+# Clave de API de Kapso, no se versiona
+/.kapso-api-key.local

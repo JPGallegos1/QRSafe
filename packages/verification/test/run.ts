@@ -215,7 +215,7 @@ check(
 );
 check(
   'rutas: el veredicto es ANOMALIA y nombra el problema',
-  veredictoRutas.state === STATES.ANOMALIA && /más de una vía de cobro/.test(veredictoRutas.message),
+  veredictoRutas.state === STATES.ANOMALIA && /cuentas de cobro distintas/.test(veredictoRutas.message),
   veredictoRutas.message
 );
 check(
@@ -351,6 +351,42 @@ check(
   costoVertical === costoApaisado,
   'vertical=' + costoVertical + ' apaisado=' + costoApaisado
 );
+
+
+/* --- el copy es producto ---
+   El texto del veredicto es lo ÚNICO que la persona ve, y le llega al teléfono
+   mientras decide si paga. No puede filtrar implementación: un número de campo
+   EMV o un CRC en hexadecimal significan algo acá y nada del otro lado. El
+   detalle técnico no se pierde, vive en `reading`, que el CLI imprime aparte. */
+const TODOS = [
+  verify(null),
+  verify('no soy un qr'),
+  verify(REAL.coto),
+  verify(dosRutas),
+  verify(sinCRC),
+  withDomain(true, [['mpago:11426824', 'Coto CICSA']], () => verify(REAL.coto)),
+  withDomain(true, [], () => verify(REAL.coto)),
+]
+
+check(
+  'copy: ningún mensaje menciona campos ni CRC en hexadecimal',
+  !TODOS.some((v) => /campo \d|CRC|tag|0x[0-9a-f]/i.test(v.message)),
+  TODOS.map((v) => v.message).find((m) => /campo \d|CRC|tag/i.test(m)) ?? ''
+)
+check(
+  'copy: todos empiezan con un símbolo y un título en negrita',
+  TODOS.every((v) => /^\S+ \*[^*]+\*/u.test(v.message)),
+  TODOS.map((v) => v.message.slice(0, 30)).join(' | ')
+)
+check(
+  'copy: fuera de cobertura NO usa el símbolo de advertencia',
+  !verify(REAL.coto).message.startsWith('⚠'),
+  verify(REAL.coto).message.slice(0, 24)
+)
+check(
+  'copy: la advertencia real SÍ lo usa',
+  withDomain(true, [], () => verify(REAL.coto)).message.startsWith('⚠'),
+)
 
 
 /* --- corpus --- */

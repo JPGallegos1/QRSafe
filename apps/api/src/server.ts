@@ -1,3 +1,5 @@
+import { appendFileSync } from 'node:fs'
+
 import express from 'express'
 
 import { manejarWebhook } from './kapso/webhook.js'
@@ -15,6 +17,15 @@ app.use(
     limit: '1mb',
     verify: (request, _response, buffer) => {
       ;(request as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer)
+
+      // Diagnóstico: con DUMP_BODIES apuntando a un archivo, se guarda el cuerpo
+      // crudo de cada entrega. Sirve para ver qué manda el proveedor de verdad,
+      // que es lo único que zanja las diferencias entre la documentación y el
+      // comportamiento. Apagado si la variable no está.
+      const destino = process.env.DUMP_BODIES
+      if (destino) {
+        appendFileSync(destino, buffer.toString('utf8') + String.fromCharCode(10))
+      }
     },
   })
 )
