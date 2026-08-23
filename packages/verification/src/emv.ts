@@ -78,15 +78,15 @@ const NESTED_TAGS: ReadonlySet<string> = new Set<string>([
 ]);
 
 export const FIELD_NAMES: Readonly<Record<string, string>> = {
-  '00': 'Versión del formato',
-  '01': 'Modo de inicio',
-  '52': 'Rubro del comercio',
-  '53': 'Moneda',
-  '54': 'Importe',
-  '58': 'País',
-  '59': 'Nombre declarado',
-  '60': 'Ciudad',
-  '62': 'Datos adicionales',
+  '00': 'Format version',
+  '01': 'Initiation method',
+  '52': 'Merchant category',
+  '53': 'Currency',
+  '54': 'Amount',
+  '58': 'Country',
+  '59': 'Declared name',
+  '60': 'City',
+  '62': 'Additional data',
   '63': 'CRC',
 };
 

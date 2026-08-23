@@ -1,171 +1,166 @@
 import type { Request, Response } from 'express'
 import { decodeImage, verify } from '@qrsafe/verification'
 
-import { verificarFirma } from './firma.js'
-import { descargarMedia } from './descargar.js'
-import { responderTexto } from './responder.js'
-import { extraerEntrantes, tieneMedia, urlDeMedia, type CuerpoWebhook, type Entrante } from './mensaje.js'
+import { verifySignature } from './signature.js'
+import { downloadMedia } from './download.js'
+import { sendText } from './reply.js'
+import { extractIncoming, hasMedia, mediaUrl, type WebhookBody, type IncomingMessage } from './message.js'
 
 /**
- * El webhook que une el canal con el motor.
+ * Connects the channel to the verification engine.
  *
- * Tres decisiones que conviene no revertir sin entender por qué están:
+ * Three decisions that should not be changed without understanding why they exist:
  *
- * 1. **Se contesta 200 enseguida y se procesa después.** Decodificar puede
- *    tardar hasta unos segundos en el peor caso, y Kapso **pausa el webhook
- *    solo** —y no lo reactiva— ante ~10 fallos o 85% de error en 15 minutos.
- *    Un endpoint lento se gana la pausa igual que uno roto, y la consecuencia
- *    es un bot mudo hasta que alguien lo toque a mano.
+ * 1. **Return 200 immediately, then process.** Decoding can take seconds in
+ *    the worst case, and Kapso pauses a webhook after roughly ten failures or
+ *    an 85% error rate in fifteen minutes. A slow endpoint is paused like a
+ *    broken one, leaving the bot silent until manually restored.
  *
- * 2. **La firma se verifica antes que nada**, contra el cuerpo crudo. Un
- *    webhook sin verificar es un endpoint público que descarga URLs ajenas y
- *    manda mensajes a cuenta de uno.
+ * 2. **Verify the signature before anything else** against the raw body. An
+ *    unverified webhook is a public endpoint that downloads arbitrary URLs and
+ *    sends messages at our expense.
  *
- * 3. **Un solo mensaje de respuesta por consulta.** El plan cuenta entrantes y
- *    salientes contra la misma cuota; ver `responder.ts`.
+ * 3. **Send one reply per query.** The plan counts inbound and outbound traffic
+ *    against the same quota; see `reply.ts`.
  *
- * El módulo no sabe nada de usuarios ni de suscripciones: la compuerta que
- * decide **si** se atiende la consulta es una capa aparte, todavía sin
- * construir, y el motor decide **qué** se contesta. Mezclarlas haría que un
- * problema de suscripción se lea como un juicio sobre el QR.
+ * This module knows nothing about users or subscriptions. A separate, unbuilt
+ * gate decides **whether** a query is served; the engine decides **what** to
+ * answer. Mixing them would turn subscription issues into judgments about QR.
  */
 
-/** Ventana corta de idempotencia: Kapso reintenta y no queremos contestar dos veces. */
-const vistos = new Map<string, number>()
-const VENTANA_MS = 10 * 60 * 1000
+/** Short idempotency window: Kapso retries, and we must not reply twice. */
+const seen = new Map<string, number>()
+const WINDOW_MS = 10 * 60 * 1000
 
-function yaProcesado(clave: string | undefined): boolean {
-  if (!clave) return false
-  const ahora = Date.now()
-  for (const [k, t] of vistos) if (ahora - t > VENTANA_MS) vistos.delete(k)
-  if (vistos.has(clave)) return true
-  vistos.set(clave, ahora)
+function alreadyProcessed(key: string | undefined): boolean {
+  if (!key) return false
+  const now = Date.now()
+  for (const [seenKey, seenAt] of seen) if (now - seenAt > WINDOW_MS) seen.delete(seenKey)
+  if (seen.has(key)) return true
+  seen.set(key, now)
   return false
 }
 
-const SIN_IMAGEN =
-  'Mandame una foto del código QR y te digo lo que puedo verificar. Por ahora sólo leo imágenes.'
+const NO_IMAGE = 'Send me a photo of the QR code and I will tell you what I can verify. I can only read images for now.'
 
-export function manejarWebhook(request: Request, response: Response): void {
-  const firma = verificarFirma(
+export function handleWebhook(request: Request, response: Response): void {
+  const signature = verifySignature(
     (request as Request & { rawBody?: Buffer }).rawBody,
     request.header('X-Webhook-Signature') ?? undefined,
     process.env.WEBHOOK_SECRET
   )
 
-  if (!firma.valida) {
-    console.warn('[webhook] firma rechazada: ' + String(firma.motivo))
-    response.status(401).json({ error: 'firma inválida' })
+  if (!signature.valid) {
+    console.warn('[webhook] rejected signature: ' + String(signature.reason))
+    response.status(401).json({ error: 'invalid_signature' })
     return
   }
 
-  if (yaProcesado(request.header('X-Idempotency-Key') ?? undefined)) {
-    response.status(200).json({ status: 'duplicado' })
+  if (alreadyProcessed(request.header('X-Idempotency-Key') ?? undefined)) {
+    response.status(200).json({ status: 'duplicate' })
     return
   }
 
-  // Se acusa recibo YA. Todo lo que sigue ocurre fuera del ciclo de la petición.
-  response.status(200).json({ status: 'recibido' })
+  // Acknowledge immediately; everything else happens outside the request cycle.
+  response.status(200).json({ status: 'received' })
 
-  const cuerpo = request.body as CuerpoWebhook
-  void procesarCuerpo(cuerpo).catch((err: unknown) => {
-    console.error('[webhook] error procesando:', err)
+  const body = request.body as WebhookBody
+  void processBody(body).catch((err: unknown) => {
+    console.error('[webhook] processing error:', err)
   })
 }
 
 /**
- * Un cuerpo puede traer un mensaje o un lote entero.
+ * A body can contain one message or a full batch.
  *
- * Con buffering activado Kapso manda `{ batch: true, data: [...] }`. Como el
- * endpoint ya devolvió 200, un lote ignorado queda dado por entregado y esa
- * gente nunca recibe respuesta: el fallo es silencioso de los dos lados. Por eso
- * se procesan todos, y cada uno con su propio catch — que uno falle no puede
- * dejar sin contestar a los que venían atrás.
+ * With buffering enabled, Kapso sends `{ batch: true, data: [...] }`. Because
+ * the endpoint has already returned 200, an ignored batch is considered
+ * delivered. Process each message with its own catch so one failure cannot
+ * prevent later replies.
  */
-async function procesarCuerpo(cuerpo: CuerpoWebhook): Promise<void> {
-  const entrantes = extraerEntrantes(cuerpo)
-  if (entrantes.length === 0) {
-    console.warn('[webhook] cuerpo sin mensajes reconocibles')
+async function processBody(body: WebhookBody): Promise<void> {
+  const incomingMessages = extractIncoming(body)
+  if (incomingMessages.length === 0) {
+    console.warn('[webhook] body has no recognized messages')
     return
   }
-  if (entrantes.length > 1) {
-    console.log('[webhook] lote de ' + String(entrantes.length) + ' mensajes')
+  if (incomingMessages.length > 1) {
+    console.log('[webhook] batch of ' + String(incomingMessages.length) + ' messages')
   }
 
-  for (const entrante of entrantes) {
+  for (const incoming of incomingMessages) {
     try {
-      await procesar(entrante)
+      await processIncoming(incoming)
     } catch (err) {
-      console.error('[webhook] error en un mensaje del lote:', err)
+      console.error('[webhook] error in batch message:', err)
     }
   }
 }
 
-async function procesar(entrante: Entrante): Promise<void> {
-  const { mensaje, destino, phoneNumberId } = entrante
-  if (mensaje.kapso?.direction === 'outbound') return // no contestarse a sí mismo
+async function processIncoming(incoming: IncomingMessage): Promise<void> {
+  const { message, destination, phoneNumberId } = incoming
+  if (message.kapso?.direction === 'outbound') return // do not reply to ourselves
 
-  if (!destino || !phoneNumberId) {
-    console.warn('[webhook] mensaje sin remitente o sin phone_number_id')
+  if (!destination || !phoneNumberId) {
+    console.warn('[webhook] message has no sender or phone_number_id')
     return
   }
 
-  if (!tieneMedia(mensaje)) {
-    await contestar(phoneNumberId, destino, SIN_IMAGEN, 'sin-imagen')
+  if (!hasMedia(message)) {
+    await reply(phoneNumberId, destination, NO_IMAGE, 'no-image')
     return
   }
 
-  const url = urlDeMedia(mensaje)
+  const url = mediaUrl(message)
   if (url === null) return
 
-  const { bytes, error } = await descargarMedia(url)
+  const { bytes, error } = await downloadMedia(url)
   if (bytes === null) {
-    console.error('[webhook] no se pudo bajar el archivo: ' + String(error))
-    await contestar(
+    console.error('[webhook] could not download file: ' + String(error))
+    await reply(
       phoneNumberId,
-      destino,
-      'No pude abrir la imagen que mandaste. Probá mandarla de nuevo.',
-      'descarga-fallida'
+      destination,
+      'I could not open the image you sent. Please try sending it again.',
+      'download-failed'
     )
     return
   }
 
-  const lectura = await decodeImage(bytes)
-  const veredicto = verify(lectura.payload)
+  const reading = await decodeImage(bytes)
+  const verdict = verify(reading.payload)
 
-  const observaciones = veredicto.notes
-    .filter((n) => n.level === 'medio')
+  const observations = verdict.notes
+    .filter((note) => note.level === 'medium')
     .map((n) => '\n\n• ' + n.text)
     .join('')
 
   console.log(
     '[webhook] ' +
-      veredicto.state +
-      ' · lectura=' +
-      (lectura.via ?? 'ilegible') +
-      ' · intentos=' +
-      String(lectura.attempts)
+      verdict.state +
+      ' · reading=' +
+      (reading.via ?? 'unreadable') +
+      ' · attempts=' +
+      String(reading.attempts)
   )
 
-  await contestar(phoneNumberId, destino, veredicto.message + observaciones, veredicto.state)
+  await reply(phoneNumberId, destination, verdict.message + observations, verdict.state)
 }
 
 /**
- * Manda la respuesta y **registra si falló**.
+ * Sends the reply and **records failures**.
  *
- * Un envío que falla en silencio es peor que un error visible: el usuario se
- * queda esperando una respuesta que nunca llega, y del lado del servidor todo
- * parece haber salido bien. Kapso además pausa el webhook por su cuenta ante
- * una racha de fallos, así que estos registros son la única señal temprana.
+ * A silently failed send leaves the user waiting while the server appears fine.
+ * Kapso can also pause the webhook after repeated failures, so these logs are
+ * the only early signal.
  */
-async function contestar(
+async function reply(
   phoneNumberId: string,
-  destino: string,
-  texto: string,
-  motivo: string
+  destination: string,
+  text: string,
+  reason: string
 ): Promise<void> {
-  const envio = await responderTexto(phoneNumberId, destino, texto)
-  if (!envio.ok) {
-    console.error('[webhook] no se pudo responder (' + motivo + '): ' + String(envio.error))
+  const result = await sendText(phoneNumberId, destination, text)
+  if (!result.ok) {
+    console.error('[webhook] could not reply (' + reason + '): ' + String(result.error))
   }
 }

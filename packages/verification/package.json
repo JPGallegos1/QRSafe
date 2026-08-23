@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Motor de verificación de QR por pertenencia. Dominio puro, sin canal.",
+  "description": "QR identity-binding verification engine. Pure domain layer, without a channel.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

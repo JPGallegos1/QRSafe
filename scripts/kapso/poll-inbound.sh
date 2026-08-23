@@ -1,44 +1,44 @@
 #!/usr/bin/env bash
 #
-# poll-inbound.sh — detecta el primer mensaje ENTRANTE con media en un número de Kapso.
+# poll-inbound.sh — detects the first INBOUND message with media for a Kapso number.
 #
-# Para qué sirve
-#   Cierra el paso 3 del runbook de docs/research/kapso-whatsapp-sandbox-bot.md sin que
-#   la persona tenga que mirar la consola: arranca el script, manda la foto desde el
-#   teléfono, y el script detecta solo el mensaje y vuelca el payload completo a disco.
+# Purpose
+#   Completes step 3 of docs/research/kapso-whatsapp-sandbox-bot.md without requiring
+#   someone to watch the console: start the script, send the photo from the phone, and
+#   the script detects the message and writes the full payload to disk.
 #
-# La pregunta que ayuda a responder
-#   ¿El sandbox de WhatsApp de Kapso entrega mensajes con imagen, o sólo texto?
-#   El criterio de corte es `kapso.has_media == true` sobre un mensaje entrante real.
+# Question it helps answer
+#   Does the Kapso WhatsApp sandbox deliver messages with images, or text only?
+#   The cutoff criterion is `kapso.has_media == true` on a real inbound message.
 #
-# Requisitos
-#   - kapso CLI (>= 0.18.0) instalado y AUTENTICADO (`kapso login` o KAPSO_API_KEY).
-#   - node (el script parsea JSON con node; NO necesita jq).
+# Requirements
+#   - kapso CLI (>= 0.18.0) installed and AUTHENTICATED (`kapso login` or KAPSO_API_KEY).
+#   - node (the script parses JSON with node; it does NOT require jq).
 #
-# Sintaxis del CLI verificada contra `kapso whatsapp messages list --help` (v0.18.0).
-# El JSON del CLI viene envuelto: { "data": [...], "paging": {...} }, NO es un array suelto.
+# CLI syntax verified against `kapso whatsapp messages list --help` (v0.18.0).
+# The CLI JSON is wrapped: { "data": [...], "paging": {...} }, NOT a bare array.
 #
-# Uso
-#   ./poll-inbound.sh --phone-number-id <ID> [opciones]
-#   ./poll-inbound.sh --phone-number "+5491122223333" [opciones]
+# Usage
+#   ./poll-inbound.sh --phone-number-id <ID> [options]
+#   ./poll-inbound.sh --phone-number "+5491122223333" [options]
 #
-# Opciones
-#   --phone-number-id <id>   ID interno de Meta del número (lo da `kapso whatsapp numbers list`)
-#   --phone-number <e164>    Número visible; el CLI lo resuelve al ID
-#   --interval <seg>         Segundos entre consultas (default: 10)
-#   --timeout <seg>          Corta después de este tiempo total (default: 900 = 15 min)
-#   --limit <n>              Mensajes entrantes a traer por consulta (default: 5)
-#   --out <archivo>          Dónde guardar el payload completo (default: ./kapso-inbound-media.json)
-#   -h | --help              Esta ayuda
+# Options
+#   --phone-number-id <id>   Meta's internal number ID (`kapso whatsapp numbers list` provides it)
+#   --phone-number <e164>    Displayed number; the CLI resolves it to the ID
+#   --interval <seconds>     Seconds between queries (default: 10)
+#   --timeout <seconds>      Stops after this total time (default: 900 = 15 min)
+#   --limit <n>              Inbound messages to fetch per query (default: 5)
+#   --out <file>             Where to save the full payload (default: ./kapso-inbound-media.json)
+#   -h | --help              This help
 #
-# Códigos de salida
-#   0  encontró un mensaje entrante con has_media == true (payload en --out)
-#   1  error de uso o falta una dependencia
-#   2  se agotó el --timeout sin ver media
+# Exit codes
+#   0  found an inbound message with has_media == true (payload in --out)
+#   1  usage error or missing dependency
+#   2  --timeout elapsed without seeing media
 #
-# NOTA: si el número es de sandbox, la sesión tiene que estar ACTIVA antes de correr esto.
-# Crear y activar la sesión es un paso de dashboard + teléfono; el CLI 0.18.0 no expone
-# ningún comando de sandbox (verificado: la palabra "sandbox" no aparece en su código).
+# NOTE: if the number is a sandbox number, its session must be ACTIVE before running this.
+# Creating and activating the session requires the dashboard and phone; CLI 0.18.0 exposes
+# no sandbox command (verified: the word "sandbox" does not appear in its code).
 
 set -uo pipefail
 
@@ -50,7 +50,7 @@ PHONE_NUMBER_ID=""
 PHONE_NUMBER=""
 
 usage() {
-  # Imprime el bloque de comentarios de arriba como ayuda.
+  # Prints the comment block above as help.
   sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
 }
 
@@ -63,31 +63,31 @@ while [ $# -gt 0 ]; do
     --limit)           LIMIT="${2:-}";           shift 2 ;;
     --out)             OUT="${2:-}";             shift 2 ;;
     -h|--help)         usage; exit 0 ;;
-    *) echo "Opción desconocida: $1" >&2; usage >&2; exit 1 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
 
-# --- Validaciones previas -----------------------------------------------------
+# --- Preflight checks ---------------------------------------------------------
 
 if ! command -v kapso >/dev/null 2>&1; then
-  echo "ERROR: no encuentro el comando 'kapso' en el PATH." >&2
-  echo "       Instalalo con: npm install -g @kapso/cli" >&2
+  echo "ERROR: could not find the 'kapso' command in PATH." >&2
+  echo "       Install it with: npm install -g @kapso/cli" >&2
   exit 1
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "ERROR: no encuentro 'node' en el PATH. El script lo usa para parsear JSON." >&2
+  echo "ERROR: could not find 'node' in PATH. The script uses it to parse JSON." >&2
   exit 1
 fi
 
 if [ -z "$PHONE_NUMBER_ID" ] && [ -z "$PHONE_NUMBER" ]; then
-  echo "ERROR: falta --phone-number-id o --phone-number." >&2
-  echo "       Listá los números disponibles con:" >&2
+  echo "ERROR: --phone-number-id or --phone-number is required." >&2
+  echo "       List available numbers with:" >&2
   echo "         kapso whatsapp numbers list --output json" >&2
   exit 1
 fi
 
-# Armamos el selector como array para que el CLI reciba los flags reales que documenta.
+# Build the selector as an array so the CLI receives its documented flags.
 SELECTOR=()
 if [ -n "$PHONE_NUMBER_ID" ]; then
   SELECTOR=(--phone-number-id "$PHONE_NUMBER_ID")
@@ -95,22 +95,22 @@ else
   SELECTOR=(--phone-number "$PHONE_NUMBER")
 fi
 
-# Aviso temprano si no hay credencial.
-# OJO: la sola existencia de ~/.kapso/cli NO significa que haya sesión — el CLI crea ese
-# directorio en el primer arranque, aunque nunca hayas hecho login. La única señal
-# confiable es `kapso status --output json`, que devuelve "authenticated": false.
-ESTADO=$(kapso status --output json 2>&1)
-if printf '%s' "$ESTADO" | grep -q '"authenticated": *false'; then
-  echo "AVISO: el CLI reporta authenticated=false. Todas las consultas van a fallar con" >&2
+# Warn early when credentials are unavailable.
+# The existence of ~/.kapso/cli alone does NOT mean a session exists: the CLI creates that
+# directory on first startup, even before login. The only reliable signal is
+# `kapso status --output json`, which returns "authenticated": false.
+STATUS=$(kapso status --output json 2>&1)
+if printf '%s' "$STATUS" | grep -q '"authenticated": *false'; then
+  echo "WARNING: the CLI reports authenticated=false. All queries will fail with" >&2
   echo "       'Not authenticated. Run \"kapso login\" first.'" >&2
-  echo "       Autenticá primero: 'kapso login' (interactivo) o exportá KAPSO_API_KEY." >&2
+  echo "       Authenticate first: run 'kapso login' interactively or export KAPSO_API_KEY." >&2
   echo "" >&2
 fi
 
-# --- Parser de la respuesta ---------------------------------------------------
-# Recibe el JSON del CLI por stdin. Sale 0 si encontró media, 10 si no, 20 si no parsea.
-# Es defensivo a propósito: tolera el envelope { data: [...] }, un array suelto,
-# y las variantes snake_case / camelCase de los campos de Kapso.
+# --- Response parser ----------------------------------------------------------
+# Reads CLI JSON from stdin. Exits 0 when media is found, 10 when not, 20 when unparseable.
+# It is deliberately defensive: accepts the { data: [...] } envelope, a bare array,
+# and snake_case / camelCase variants of Kapso fields.
 read -r -d '' NODE_FINDER <<'NODE_EOF'
 let raw = '';
 process.stdin.setEncoding('utf8');
@@ -120,16 +120,16 @@ process.stdin.on('end', () => {
   try {
     payload = JSON.parse(raw);
   } catch {
-    // No es JSON: casi siempre es un mensaje de error del CLI en texto plano.
-    process.stderr.write('   respuesta no-JSON del CLI: ' + raw.trim().slice(0, 300) + '\n');
+    // Not JSON: this is almost always a plaintext CLI error message.
+    process.stderr.write('   non-JSON CLI response: ' + raw.trim().slice(0, 300) + '\n');
     process.exit(20);
   }
 
-  // El CLI 0.18.0 devuelve { data: [...], paging: {...} }. Toleramos un array suelto
-  // por si la forma cambia en una versión futura.
+  // CLI 0.18.0 returns { data: [...], paging: {...} }. Accept a bare array in case
+  // a future version changes the shape.
   const list = Array.isArray(payload) ? payload : (payload.data ?? []);
   if (!Array.isArray(list)) {
-    process.stderr.write('   forma inesperada: no encuentro un array de mensajes\n');
+    process.stderr.write('   unexpected shape: could not find a message array\n');
     process.exit(20);
   }
 
@@ -146,15 +146,15 @@ process.stdin.on('end', () => {
   });
 
   if (!hit) {
-    // Sin media todavía: reportamos qué SÍ llegó, para que la persona vea el avance.
-    const resumen = list.map((m) => {
+    // No media yet: report what did arrive so the operator can track progress.
+    const summary = list.map((m) => {
       const k = m?.kapso ?? {};
       const media = pick(k, 'has_media', 'hasMedia');
-      return `${m?.type ?? 'unknown'}(has_media=${media === undefined ? 'ausente' : media})`;
+      return `${m?.type ?? 'unknown'}(has_media=${media === undefined ? 'missing' : media})`;
     });
     process.stderr.write(
-      `   ${list.length} entrante(s), ninguno con media` +
-      (resumen.length ? `: ${resumen.join(', ')}` : '') + '\n'
+      `   ${list.length} inbound message(s), none with media` +
+      (summary.length ? `: ${summary.join(', ')}` : '') + '\n'
     );
     process.exit(10);
   }
@@ -165,7 +165,7 @@ process.stdin.on('end', () => {
     message_id: hit.id,
     type: hit.type,
     timestamp: hit.timestamp,
-    // media_id de Meta: camino de respaldo, ventana de 7 días.
+    // Meta media_id: fallback path, 7-day window.
     meta_media_id: hit.image?.id ?? hit.video?.id ?? hit.document?.id ?? hit.audio?.id ?? null,
     caption: hit.image?.caption ?? null,
     has_media: pick(k, 'has_media', 'hasMedia'),
@@ -179,76 +179,76 @@ process.stdin.on('end', () => {
     conversation_id: pick(k, 'whatsapp_conversation_id', 'whatsappConversationId') ?? null,
   };
 
-  process.stdout.write(JSON.stringify({ resumen: out, mensaje_completo: hit }, null, 2));
+  process.stdout.write(JSON.stringify({ summary: out, full_message: hit }, null, 2));
   process.exit(0);
 });
 NODE_EOF
 
-# --- Bucle de consulta --------------------------------------------------------
+# --- Query loop ---------------------------------------------------------------
 
-INICIO=$(date +%s)
-LIMITE=$((INICIO + TIMEOUT))
-VUELTA=0
+START_TIME=$(date +%s)
+DEADLINE=$((START_TIME + TIMEOUT))
+ATTEMPT=0
 
-echo "Escuchando mensajes entrantes en Kapso."
+echo "Listening for inbound messages in Kapso."
 echo "  selector : ${SELECTOR[*]}"
-echo "  intervalo: ${INTERVAL}s   timeout: ${TIMEOUT}s   limit: ${LIMIT}"
-echo "  salida   : ${OUT}"
+echo "  interval: ${INTERVAL}s   timeout: ${TIMEOUT}s   limit: ${LIMIT}"
+echo "  output  : ${OUT}"
 echo ""
-echo "AHORA: mandá la foto con el QR desde el teléfono al número de WhatsApp."
+echo "NOW: send the QR photo from the phone to the WhatsApp number."
 echo ""
 
-while [ "$(date +%s)" -lt "$LIMITE" ]; do
-  VUELTA=$((VUELTA + 1))
-  TRANSCURRIDO=$(( $(date +%s) - INICIO ))
-  printf '[%03d] t+%ss ... ' "$VUELTA" "$TRANSCURRIDO"
+while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+  ATTEMPT=$((ATTEMPT + 1))
+  ELAPSED=$(( $(date +%s) - START_TIME ))
+  printf '[%03d] t+%ss ... ' "$ATTEMPT" "$ELAPSED"
 
-  # 2>&1 a propósito: si el CLI falla, queremos el texto del error, no perderlo.
-  RESPUESTA=$(kapso whatsapp messages list \
+  # Intentionally capture stderr: preserve CLI error text when it fails.
+  RESPONSE=$(kapso whatsapp messages list \
     "${SELECTOR[@]}" \
     --direction inbound \
     --limit "$LIMIT" \
     --output json 2>&1)
-  CLI_STATUS=$?
+  CLI_EXIT_STATUS=$?
 
-  if [ $CLI_STATUS -ne 0 ]; then
-    # No cortamos: un error transitorio (red, rate limit) no debe matar la espera.
-    # Un error de autenticación sí es terminal, pero lo dejamos visible en pantalla.
-    echo "el CLI falló (exit ${CLI_STATUS})"
-    echo "      ${RESPUESTA}" | head -n 3
+  if [ $CLI_EXIT_STATUS -ne 0 ]; then
+    # Do not stop: a transient error (network, rate limit) should not end the wait.
+    # Authentication errors are terminal, but leave them visible on screen.
+    echo "the CLI failed (exit ${CLI_EXIT_STATUS})"
+    echo "      ${RESPONSE}" | head -n 3
     sleep "$INTERVAL"
     continue
   fi
 
-  HALLAZGO=$(printf '%s' "$RESPUESTA" | node -e "$NODE_FINDER")
-  NODE_STATUS=$?
+  MATCH=$(printf '%s' "$RESPONSE" | node -e "$NODE_FINDER")
+  NODE_EXIT_STATUS=$?
 
-  case $NODE_STATUS in
+  case $NODE_EXIT_STATUS in
     0)
-      echo "ENCONTRADO"
+      echo "FOUND"
       echo ""
-      echo "=== Mensaje entrante CON media ==="
-      printf '%s\n' "$HALLAZGO" | node -e "
+      echo "=== INBOUND message WITH media ==="
+      printf '%s\n' "$MATCH" | node -e "
         let raw='';process.stdin.setEncoding('utf8');
         process.stdin.on('data',c=>raw+=c);
         process.stdin.on('end',()=>{
           const p=JSON.parse(raw);
-          console.log(JSON.stringify(p.resumen,null,2));
+          console.log(JSON.stringify(p.summary,null,2));
         });
       "
-      printf '%s' "$HALLAZGO" > "$OUT"
+      printf '%s' "$MATCH" > "$OUT"
       echo ""
-      echo "Payload completo guardado en: ${OUT}"
+      echo "Full payload saved to: ${OUT}"
       echo ""
-      echo "Siguiente paso: medir la vigencia de la URL de media."
-      echo "  ./check-media-url.sh \"<media_data.url de arriba>\""
+      echo "Next step: measure the media URL lifetime."
+      echo "  ./check-media-url.sh \"<summary.media_data.url from above>\""
       exit 0
       ;;
     10)
-      # Sin media todavía. El detalle ya lo imprimió el parser por stderr.
+      # No media yet. The parser already wrote details to stderr.
       ;;
     *)
-      echo "      (no pude interpretar la respuesta; reintento)"
+      echo "      (could not parse the response; retrying)"
       ;;
   esac
 
@@ -256,13 +256,13 @@ while [ "$(date +%s)" -lt "$LIMITE" ]; do
 done
 
 echo ""
-echo "TIMEOUT: pasaron ${TIMEOUT}s sin ver un mensaje entrante con has_media == true."
+echo "TIMEOUT: ${TIMEOUT}s elapsed without an inbound message with has_media == true."
 echo ""
-echo "Esto NO prueba todavía que el sandbox no entregue media. Antes de concluir, revisá:"
-echo "  1. Que la sesión de sandbox esté ACTIVA (el código vence a los 15 minutos)."
-echo "  2. Que el --phone-number-id sea el del número al que mandaste la foto."
-echo "  3. Qué llegó realmente, sin filtrar por dirección ni por media:"
+echo "This does NOT yet prove that the sandbox does not deliver media. Before concluding, check:"
+echo "  1. The sandbox session is ACTIVE (the code expires after 15 minutes)."
+echo "  2. --phone-number-id belongs to the number that received the photo."
+echo "  3. What actually arrived, without filtering by direction or media:"
 echo "       kapso whatsapp messages list ${SELECTOR[*]} --limit 10 --output json"
-echo "  4. Si el mensaje aparece con type=image pero has_media=false, el sandbox recibe"
-echo "     la imagen pero no la ingesta: queda el camino message.image.id vía proxy Meta."
+echo "  4. If the message appears with type=image but has_media=false, the sandbox receives"
+echo "     the image but does not ingest it: message.image.id via the Meta proxy remains."
 exit 2

@@ -31,7 +31,7 @@ export interface Domain {
    * municipality, an agency. Null when each enrolled code belongs to a
    * different merchant; then the name comes from the entry itself.
    *
-   * INVARIANT: a domain with `issuer: null` must not be `closed`. NO_AUTORIZADO
+     * INVARIANT: a domain with `issuer: null` must not be `closed`. UNAUTHORIZED
    * has to name whoever failed to authorise the code, and a domain with no
    * single issuer has nobody to name. Pinned by a test.
    */
@@ -40,7 +40,7 @@ export interface Domain {
   matches: DomainMatches;
   /**
    * Identifier to the name of the business that authorised it. The value is not
-   * decoration: it is what the VERIFICADO message says out loud, and the whole
+     * decoration: it is what the VERIFIED message says out loud, and the whole
    * product is the claim that the code belongs to the business in front of you.
    * Naming the domain instead of the merchant answers a different question.
    */
@@ -60,7 +60,7 @@ export interface Lookup {
 export const DOMAINS: Domain[] = [
   {
     id: 'sem-cordoba',
-    label: 'Estacionamiento medido de la Municipalidad de Córdoba',
+    label: 'Municipality of Córdoba metered parking',
     issuer: 'Municipalidad de Córdoba',
     closed: false, // flips to true once the municipality enumerates its POS ids
     matches: { schemes: ['ar.gob.cordoba.sem'], hosts: [] },
@@ -68,7 +68,7 @@ export const DOMAINS: Domain[] = [
   },
   {
     id: 'mercadopago',
-    label: 'Puntos de venta de Mercado Pago',
+    label: 'Mercado Pago points of sale',
     issuer: null, // the issuer is the merchant, not Mercado Pago
     closed: false,
     matches: { schemes: ['com.mercadolibre'], hosts: ['mpago.la'] },
@@ -135,7 +135,7 @@ export function domainOf(reading: Reading | null): Domain | null {
  * An EMV payload may carry several merchant-account templates, and different
  * wallets pick different ones. Letting any enrolled key vouch for the whole QR
  * would let a crafted code keep one enrolled route beside a second, unrelated
- * payment route and still come back VERIFICADO — while the money leaves through
+  * payment route and still come back VERIFIED — while the money leaves through
  * the other one. `otherRoutes` reports those extra routes so the caller can
  * refuse to verify at all.
  */
