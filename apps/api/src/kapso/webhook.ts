@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import { decodeImage, MENSAJES, STATES, verify } from '@qrsafe/verification'
 
-import { lookupActiveBinding } from '../lookup.js'
+import { lookupActiveBinding, findVerifiedBusinessNamed } from '../lookup.js'
 import { verifySignature } from './signature.js'
 import { downloadMedia } from './download.js'
 import { sendText } from './reply.js'
@@ -167,6 +167,37 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
       'registered'
     )
     return
+  }
+
+  // No binding. Before falling back to "I have no record", ask whether the code
+  // CLAIMS to be a certified business.
+  //
+  // Certifying means the merchant enumerated their codes, so among their codes
+  // an absence IS the answer. Replying "I cannot confirm or rule out" to a code
+  // that claims to be Andrea's, when Andrea registered hers and this is not one
+  // of them, would defeat the point of certifying at all.
+  //
+  // The claimed name is attacker-controlled, and that is precisely why it may
+  // only be used in this direction: to accuse, never to verify. A forger who
+  // borrows a certified merchant's name only exposes himself.
+  const claimed = verdict.reading?.kind === 'emv' ? verdict.reading.declaredName : null
+  if (claimed !== null && claimed.length > 0) {
+    try {
+      const certified = await findVerifiedBusinessNamed(claimed)
+      if (certified !== null) {
+        await reply(
+          phoneNumberId,
+          destination,
+          MENSAJES.noEstaEntreLosRegistrados(certified),
+          'claims-certified'
+        )
+        return
+      }
+    } catch (error) {
+      // A registry that cannot answer must not turn into an accusation: fall
+      // through to the honest "I have no record" instead.
+      console.error('[webhook] no se pudo consultar comercios certificados:', error)
+    }
   }
 
   await reply(phoneNumberId, destination, verdict.message, verdict.state)
