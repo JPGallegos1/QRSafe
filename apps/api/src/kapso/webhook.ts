@@ -151,10 +151,17 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
   }
 
   let binding = null
+  // A lookup that FAILED is not a lookup that found nothing, and the difference
+  // decides whether an accusation is allowed at all. If the binding query threw
+  // — a transient database failure — a perfectly registered code looks absent,
+  // and accusing on that basis would tell a legitimate merchant's customer not
+  // to pay because our database blinked.
+  let registryAnswered = true
   if (reading.payload !== null) {
     try {
       binding = await lookupActiveBinding(reading.payload)
     } catch (error) {
+      registryAnswered = false
       console.error('[webhook] no se pudo consultar el registro:', error)
     }
   }
@@ -181,7 +188,7 @@ async function processIncoming(incoming: IncomingMessage): Promise<void> {
   // only be used in this direction: to accuse, never to verify. A forger who
   // borrows a certified merchant's name only exposes himself.
   const claimed = verdict.reading?.kind === 'emv' ? verdict.reading.declaredName : null
-  if (claimed !== null && claimed.length > 0) {
+  if (registryAnswered && claimed !== null && claimed.length > 0) {
     try {
       const certified = await findVerifiedBusinessNamed(claimed)
       if (certified !== null) {

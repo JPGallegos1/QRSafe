@@ -98,10 +98,37 @@ export async function findVerifiedBusinessNamed(declaredName: string): Promise<s
     .from('businesses')
     .select('name')
     .eq('verification_status', 'verified')
-    .ilike('name', claimed)
+    .ilike('name', escapePattern(claimed))
     .limit(1)
     .maybeSingle()
   if (result.error) throw result.error
   if (!result.data) return null
-  return (result.data as { name: string }).name
+
+  // Second gate, and not redundant: even if a pattern character slipped through
+  // the escaping, a name that does not actually equal the claimed one must not
+  // produce an accusation. The comparison the product promised is equality, so
+  // that is what decides.
+  const found = (result.data as { name: string }).name
+  return sameName(found, claimed) ? found : null
+}
+
+/**
+ * Neutralises SQL pattern characters in attacker-controlled text.
+ *
+ * `ilike` treats `%` and `_` as wildcards, and PostgREST also translates `*`.
+ * A field 59 of `%%%` would therefore match an arbitrary verified business and
+ * produce a false "do not pay" against a perfectly legitimate, unregistered
+ * code — the exact failure this whole design exists to avoid, handed to the
+ * attacker for free.
+ */
+function escapePattern(value: string): string {
+  const especiales = new Set(['\\', '%', '_', '*'])
+  return Array.from(value)
+    .map((c) => (especiales.has(c) ? '\\' + c : c))
+    .join('')
+}
+
+/** Case-insensitive, accent-sensitive equality after trimming. */
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLocaleLowerCase('es') === b.trim().toLocaleLowerCase('es')
 }
