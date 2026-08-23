@@ -16,6 +16,7 @@ import * as emv from '../src/emv.js';
 import { verify, STATES } from '../src/verify.js';
 import { decodeImage } from '../src/decode.js';
 import { DOMAINS, type Domain } from '../src/registry.js';
+import QRCode from 'qrcode';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -237,6 +238,67 @@ check(
   bomba.payload === null && bomba.attempts === 0 && /por encima del límite/.test(bomba.error ?? ''),
   'error=' + String(bomba.error) + ' intentos=' + String(bomba.attempts)
 );
+
+
+/* --- longitudes en BYTES, no en caracteres ---
+   EMVCo cuenta bytes UTF-8. Un comercio argentino con acento en el nombre es el
+   caso común, no el borde: si el parseo camina caracteres de JavaScript, el
+   payload se desalinea y un QR legítimo termina en ANOMALIA. Falsa alarma sobre
+   un comercio real es exactamente el fallo que este producto existe para evitar. */
+const conAcento = (() => {
+  const tlv = (t: string, v: string) => t + String(emv.byteLength(v)).padStart(2, '0') + v;
+  const cuerpo =
+    tlv('00', '01') + tlv('01', '11') + tlv('59', 'PANADERÍA SAN JOSÉ') + tlv('58', 'AR');
+  const conCRC = cuerpo + '6304';
+  return conCRC + emv.crc16(conCRC);
+})();
+const acentuado = emv.parse(conAcento);
+check('bytes: el nombre con acentos se lee entero', acentuado?.declaredName === 'PANADERÍA SAN JOSÉ', String(acentuado?.declaredName));
+check('bytes: el campo siguiente al acentuado no se pierde', acentuado?.country === 'AR', String(acentuado?.country));
+check('bytes: el payload con acentos cierra bien', acentuado?.wellFormed === true);
+check('bytes: el CRC sobre bytes coincide', acentuado?.crc.intact === true);
+check(
+  'bytes: un comercio con acento NO dispara una falsa alarma',
+  verify(conAcento).state !== STATES.ANOMALIA,
+  'devolvió ' + verify(conAcento).state
+);
+check('bytes: byteLength cuenta UTF-8, no UTF-16', emv.byteLength('ÍÉ') === 4 && 'ÍÉ'.length === 2);
+
+
+/* --- ida y vuelta del decodificador ---
+   El corpus de images/ es un informe, no una aserción: está gitignorado y su
+   tasa se mueve con las fotos. Esto en cambio genera un QR real en memoria y
+   verifica que el decodificador lo lee, sin depender de ningún archivo. */
+const generado = await QRCode.toBuffer(REAL.coto, {
+  errorCorrectionLevel: 'M',
+  margin: 4,
+  scale: 6,
+  type: 'png',
+});
+const leido = await decodeImage(generado);
+check('decoder: lee un QR generado en memoria', leido.payload !== null, 'error=' + String(leido.error));
+check('decoder: devuelve exactamente el payload original', leido.payload === REAL.coto);
+check(
+  'decoder: ese payload verifica igual que el literal',
+  verify(leido.payload).state === verify(REAL.coto).state
+);
+
+/* Un QR con acentos tiene que sobrevivir la ida y vuelta completa: encode,
+   imagen, decode, parseo por bytes. */
+const qrAcento = await QRCode.toBuffer(conAcento, { margin: 4, scale: 6, type: 'png' });
+const leidoAcento = await decodeImage(qrAcento);
+check('decoder: un QR con acentos vuelve idéntico', leidoAcento.payload === conAcento);
+check(
+  'decoder: y no dispara una falsa alarma',
+  verify(leidoAcento.payload).state !== STATES.ANOMALIA,
+  'devolvió ' + verify(leidoAcento.payload).state
+);
+
+/* Una imagen sin ningún código no es sospechosa: es ilegible. */
+const vacia = await QRCode.toBuffer('x', { margin: 0, scale: 1, type: 'png' });
+const recorte = vacia.subarray(0, Math.min(vacia.length, 200));
+const rota = await decodeImage(recorte);
+check('decoder: una imagen rota no acusa al código', verify(rota.payload).state === STATES.ILEGIBLE);
 
 
 /* --- corpus --- */

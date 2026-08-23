@@ -27,6 +27,18 @@ function isFile(arg: string): boolean {
   }
 }
 
+/**
+ * Whether the argument was meant as a file. A mistyped path must not be read as
+ * a QR payload: it would come back FUERA_DE_COBERTURA and exit 0, so a typo
+ * would look like a successful run that verified nothing.
+ */
+function looksLikePath(arg: string): boolean {
+  // Sólo un prefijo de ruta o una extensión de imagen cuentan. Buscar una barra
+  // suelta no sirve: un payload EMV lleva URLs adentro y quedaría tomado por ruta.
+  const prefijo = /^([.]{1,2}[/\\]|[/\\]|[A-Za-z]:[/\\])/;
+  return prefijo.test(arg) || /[.](jpe?g|png|bmp|webp|gif)$/i.test(arg);
+}
+
 interface Source {
   payload: string | null;
   label: string;
@@ -79,16 +91,25 @@ async function main(): Promise<void> {
     console.error('uso: qrsafe-verify <imagen|payload> [...]');
     process.exit(2);
   }
+  let failed = 0;
   for (const arg of args) {
+    if (!isFile(arg) && looksLikePath(arg)) {
+      console.error('\n── ' + path.basename(arg));
+      console.error('   no existe el archivo: ' + arg);
+      failed++;
+      continue;
+    }
     const { payload, label, error } = await sourceFor(arg);
     if (error !== null) {
       console.log('\n── ' + path.basename(arg));
       console.log('   no se pudo abrir: ' + error);
+      failed++;
       continue;
     }
     print(arg, label, verify(payload));
   }
   console.log('');
+  if (failed > 0) process.exit(1);
 }
 
 main().catch((err: unknown) => {
